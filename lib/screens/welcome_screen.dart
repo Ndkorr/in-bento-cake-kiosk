@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import 'loading_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -12,8 +13,32 @@ class WelcomeScreen extends StatefulWidget {
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
-
 class _WelcomeScreenState extends State<WelcomeScreen> {
+  bool _showOrderTypeSelection = false;
+
+  void _handleOrderNowTap() {
+    setState(() {
+      _showOrderTypeSelection = true;
+    });
+  }
+
+  void _handleDineInTap() {
+    _showLoadingOverlay('Dine In');
+  }
+
+  void _handleTakeoutTap() {
+    _showLoadingOverlay('Takeout');
+  }
+
+  void _showLoadingOverlay(String orderType) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.transparent,
+      builder: (context) => LoadingOverlay(orderType: orderType),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,11 +87,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            // Top: logo without pink glow
+                            // Top: logo
                             SizedBox(
                               height: logoH,
                               child: Image.asset(
-                                'icons/icon-original.png',
+                                'assets/icons/icon-original.png',
                                 fit: BoxFit.contain,
                                 errorBuilder: (_, __, ___) => const Icon(
                                   Icons.cake,
@@ -106,7 +131,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                     cardWidth: cardWidth,
                                     titleSize: titleSize,
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 4),
                                   Text(
                                     'Sweet Moments in Every Bite',
                                     textAlign: TextAlign.center,
@@ -120,8 +145,32 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                               ),
                             ),
 
-                            // Bottom: Order Now button
-                            const _OrderNowButton(),
+                            // Bottom: Order Now button or Order Type Selection
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 400),
+                              transitionBuilder: (child, animation) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, 0.2),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: _showOrderTypeSelection
+                                  ? _OrderTypeSelection(
+                                      key: const ValueKey('order-type'),
+                                      onDineInTap: _handleDineInTap,
+                                      onTakeoutTap: _handleTakeoutTap,
+                                    )
+                                  : _OrderNowButton(
+                                      key: const ValueKey('order-now'),
+                                      onTap: _handleOrderNowTap,
+                                    ),
+                            ),
                           ],
                         ),
                       ),
@@ -191,7 +240,6 @@ class _AnimatedTitleTextState extends State<_AnimatedTitleText>
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: widget.cardWidth * 0.95),
       child: SizedBox(
-        // Fixed height to prevent layout shifts
         height: widget.titleSize * 1.1,
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 500),
@@ -231,9 +279,14 @@ class _AnimatedTitleTextState extends State<_AnimatedTitleText>
   }
 }
 
-/// Order Now button - white background, gradient border on interaction
+/// Order Now button
 class _OrderNowButton extends StatefulWidget {
-  const _OrderNowButton();
+  const _OrderNowButton({
+    super.key,
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
 
   @override
   State<_OrderNowButton> createState() => _OrderNowButtonState();
@@ -245,7 +298,6 @@ class _OrderNowButtonState extends State<_OrderNowButton> {
 
   @override
   Widget build(BuildContext context) {
-    // Show hover/pressed state
     final isActive = _isPressed || _isHovered;
 
     return MouseRegion(
@@ -255,15 +307,13 @@ class _OrderNowButtonState extends State<_OrderNowButton> {
         onTapDown: (_) => setState(() => _isPressed = true),
         onTapUp: (_) {
           setState(() => _isPressed = false);
-          debugPrint('Order Now tapped');
-          // TODO: Navigate to menu screen
+          widget.onTap();
         },
         onTapCancel: () => setState(() => _isPressed = false),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(40),
-            // Gradient background when NOT active (initial state)
             gradient: !isActive
                 ? const LinearGradient(
                     colors: [AppColors.pink500, AppColors.peach300],
@@ -283,7 +333,6 @@ class _OrderNowButtonState extends State<_OrderNowButton> {
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(37),
-              // Gradient border when active
               gradient: isActive
                   ? const LinearGradient(
                       colors: [AppColors.pink500, AppColors.peach300],
@@ -295,7 +344,6 @@ class _OrderNowButtonState extends State<_OrderNowButton> {
             padding: const EdgeInsets.all(3),
             child: Container(
               decoration: BoxDecoration(
-                // White when active, transparent when not
                 color: isActive ? Colors.white : Colors.transparent,
                 borderRadius: BorderRadius.circular(34),
               ),
@@ -306,7 +354,6 @@ class _OrderNowButtonState extends State<_OrderNowButton> {
                   Text(
                     'Order Now!',
                     style: GoogleFonts.ubuntu(
-                      // White when NOT active, pink when active
                       color: !isActive ? Colors.white : AppColors.pink500,
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -318,6 +365,152 @@ class _OrderNowButtonState extends State<_OrderNowButton> {
                     Icons.arrow_forward_rounded,
                     color: !isActive ? Colors.white : AppColors.pink500,
                     size: 26,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Order Type Selection - Dine In and Takeout buttons side by side
+class _OrderTypeSelection extends StatelessWidget {
+  const _OrderTypeSelection({
+    super.key,
+    required this.onDineInTap,
+    required this.onTakeoutTap,
+  });
+
+  final VoidCallback onDineInTap;
+  final VoidCallback onTakeoutTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        // Dine In Button
+        Expanded(
+          child: _OrderTypeButton(
+            label: 'Dine In',
+            icon: Icons.restaurant,
+            gradient: const LinearGradient(
+              colors: [AppColors.pink500, AppColors.salmon400],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            onTap: onDineInTap,
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Takeout Button
+        Expanded(
+          child: _OrderTypeButton(
+            label: 'Takeout',
+            icon: Icons.shopping_bag_outlined,
+            gradient: const LinearGradient(
+              colors: [AppColors.salmon400, AppColors.peach300],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            onTap: onTakeoutTap,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Order Type Button (Dine In / Takeout)
+class _OrderTypeButton extends StatefulWidget {
+  const _OrderTypeButton({
+    required this.label,
+    required this.icon,
+    required this.gradient,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Gradient gradient;
+  final VoidCallback onTap;
+
+  @override
+  State<_OrderTypeButton> createState() => _OrderTypeButtonState();
+}
+
+class _OrderTypeButtonState extends State<_OrderTypeButton> {
+  bool _isPressed = false;
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = _isPressed || _isHovered;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          setState(() => _isPressed = false);
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            // Gradient background when NOT active
+            gradient: !isActive ? widget.gradient : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: _isHovered ? 0.12 : 0.08),
+                blurRadius: _isHovered ? 16 : 12,
+                offset: Offset(0, _isHovered ? 6 : 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(2),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              // Gradient border when active
+              gradient: isActive ? widget.gradient : null,
+            ),
+            padding: const EdgeInsets.all(2),
+            child: Container(
+              decoration: BoxDecoration(
+                // White when active, transparent when not
+                color: isActive ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.icon,
+                    // Colored icon when active, white when not
+                    color: isActive
+                        ? (widget.gradient as LinearGradient).colors.first
+                        : Colors.white,
+                    size: 28,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.label,
+                    style: GoogleFonts.ubuntu(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      // Colored text when active, white when not
+                      color: isActive
+                          ? (widget.gradient as LinearGradient).colors.first
+                          : Colors.white,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ],
               ),
@@ -361,21 +554,23 @@ class _TiledIcons extends StatelessWidget {
           final fractionX = (c + 0.5) / cols;
           final fractionY = (r + 0.5) / rows;
 
-          final offsetX = (math.sin((r + 1) * 1.3) + math.cos((c + 1) * 0.7)) * 6;
-          final offsetY = (math.cos((c + 1) * 1.1) + math.sin((r + 1) * 0.9)) * 6;
+          final offsetX =
+              (math.sin((r + 1) * 1.3) + math.cos((c + 1) * 0.7)) * 6;
+          final offsetY =
+              (math.cos((c + 1) * 1.1) + math.sin((r + 1) * 0.9)) * 6;
 
           final left = (fractionX * w) + offsetX - (cell * 0.25);
           final top = (fractionY * h) + offsetY - (cell * 0.25);
 
           final size = (cell * 0.28) + ((r + c) % 3) * 6;
 
-          final distToCenter = (Offset(left + size / 2, top + size / 2) -
-                  Offset(w / 2, h / 2))
-              .distance;
+          final distToCenter =
+              (Offset(left + size / 2, top + size / 2) - Offset(w / 2, h / 2))
+                  .distance;
           final maxDist = math.sqrt(w * w + h * h) / 2;
           final opacityBase = 0.12;
-          final opacity = (opacityBase + (distToCenter / maxDist) * 0.06)
-              .clamp(0.06, 0.20);
+          final opacity =
+              (opacityBase + (distToCenter / maxDist) * 0.06).clamp(0.06, 0.20);
 
           widgets.add(
             Positioned(
@@ -446,7 +641,8 @@ class _AnimatedIconState extends State<_AnimatedIcon>
           child: Transform.rotate(
             angle: math.sin(_controller.value * 2 * math.pi) * 0.1,
             child: Opacity(
-              opacity: widget.opacity + (math.sin(_controller.value * math.pi) * 0.04),
+              opacity: widget.opacity +
+                  (math.sin(_controller.value * math.pi) * 0.04),
               child: Icon(
                 widget.icon,
                 size: widget.size,
