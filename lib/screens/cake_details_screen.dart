@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
-import 'menu_screen.dart'; // We need _CakeCard, so we import the whole file.
+import 'menu_screen.dart';
 
-import 'package:in_bento_kiosk/screens/cake_customizer_screen.dart';
+import 'cake_customizer_screen.dart';
 
 class CakeDetailsScreen extends StatelessWidget {
   const CakeDetailsScreen({
@@ -60,7 +60,16 @@ class CakeDetailsScreen extends StatelessWidget {
                           isSelected: true,
                           isLandscape: false, // Keep portrait layout
                           onTap: () {}, // No action needed here
-                          onViewTap: () {},
+                          onViewTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const CakeCustomizerScreen(
+                                  cakeShape: 'round',
+                                ),
+                              ),
+                            );
+                          },
                           viewButtonText: 'Customize',
                         ),
                       ),
@@ -75,6 +84,18 @@ class CakeDetailsScreen extends StatelessWidget {
                           return _OptionButton(
                             title: options[index]['title']!,
                             subtitle: options[index]['subtitle']!,
+                            onTap: () {
+                              if (options[index]['title'] == '2 LAYERS') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const CakeCustomizerScreen(
+                                      cakeShape: 'round',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
                           );
                         },
                         separatorBuilder: (context, index) =>
@@ -102,52 +123,56 @@ class CakeDetailsScreen extends StatelessWidget {
 }
 
 class _OptionButton extends StatelessWidget {
-  const _OptionButton({required this.title, required this.subtitle});
+  const _OptionButton({required this.title, required this.subtitle, this.onTap});
 
   final String title;
   final String subtitle;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.pink500,
-            AppColors.salmon400,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.pink500,
+              AppColors.salmon400,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(30),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
           ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(30),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.ubuntu(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
+        child: Column(
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.ubuntu(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+              ),
             ),
-          ),
-          Text(
-            subtitle,
-            style: GoogleFonts.ubuntu(
-              color: AppColors.cream200,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
+            Text(
+              subtitle,
+              style: GoogleFonts.ubuntu(
+                color: AppColors.cream200,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
