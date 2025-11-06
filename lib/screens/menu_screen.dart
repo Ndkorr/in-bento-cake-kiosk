@@ -730,7 +730,7 @@ class _CartOverlayState extends State<_CartOverlay>
                 // Use a stable centered width to avoid odd wrapping on web in landscape
                 double targetWidth = isLandscape ? size.width * 0.55 : math.min(size.width, 1100);
                 // Clamp so it's never too small or too wide
-                targetWidth = targetWidth.clamp(520.0, 1100.0);
+                targetWidth = targetWidth.clamp(1520.0, 1100.0);
 
                 return SizedBox(
                   width: targetWidth,
