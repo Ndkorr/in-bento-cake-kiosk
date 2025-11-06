@@ -398,7 +398,7 @@ class _BottomCartBar extends StatelessWidget {
               gradient: const LinearGradient(
                 colors: [AppColors.pink500, AppColors.salmon400],
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.add_shopping_cart, size: 22),
@@ -475,11 +475,13 @@ class _MenuActionButton extends StatefulWidget {
     required this.onTap,
     required this.gradient,
     required this.child,
+    this.compact = false,
   });
 
   final VoidCallback onTap;
   final Gradient gradient;
   final Widget child;
+  final bool compact;
 
   @override
   State<_MenuActionButton> createState() => _MenuActionButtonState();
@@ -493,6 +495,12 @@ class _MenuActionButtonState extends State<_MenuActionButton> {
   Widget build(BuildContext context) {
     final isActive = _isPressed || _isHovered;
     final gradientColors = (widget.gradient as LinearGradient).colors;
+    final outerRadius = widget.compact ? 12.0 : 16.0;
+    final midRadius = widget.compact ? 10.0 : 14.0;
+    final innerRadius = widget.compact ? 8.0 : 12.0;
+    final padV = widget.compact ? 6.0 : 12.0;
+    final padH = widget.compact ? 10.0 : 12.0;
+    final fontSize = widget.compact ? 12.0 : 14.0;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -507,7 +515,7 @@ class _MenuActionButtonState extends State<_MenuActionButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(outerRadius),
             gradient: !isActive ? widget.gradient : null,
             boxShadow: [
               BoxShadow(
@@ -522,22 +530,21 @@ class _MenuActionButtonState extends State<_MenuActionButton> {
           padding: const EdgeInsets.all(2),
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(midRadius),
               gradient: isActive ? widget.gradient : null,
             ),
             padding: const EdgeInsets.all(2),
             child: Container(
               decoration: BoxDecoration(
                 color: isActive ? Colors.white : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(innerRadius),
               ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
               child: DefaultTextStyle(
                 style: TextStyle(
                   color: isActive ? gradientColors.first : Colors.white,
                   fontWeight: FontWeight.w800,
-                  fontSize: 14,
+                  fontSize: fontSize,
                 ),
                 child: IconTheme(
                   data: IconThemeData(
@@ -720,17 +727,19 @@ class _CartOverlayState extends State<_CartOverlay>
                 final size = MediaQuery.of(context).size;
                 final isLandscape = size.width > size.height;
                 final sheetHeight = isLandscape ? size.height * 0.9 : size.height * 0.7;
+                final sheetWidth = isLandscape ? size.width * 0.9 : size.width;
                 return Padding(
-                  padding: EdgeInsets.symmetric(horizontal: isLandscape ? 48 : 0),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1100),
-                    child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: isLandscape ? 24 : 0),
+                  child: Center(
+                    child: SizedBox(
+                      width: math.min(sheetWidth, 1280),
                       height: sheetHeight,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-                      ),
-                      child: Column(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                        ),
+                        child: Column(
                   children: [
                     // Handle bar
                     Container(
@@ -878,10 +887,11 @@ class _CartOverlayState extends State<_CartOverlay>
                       ),
                     ),
                   ],
-                      ),
-                    ),
-                  ),
-                );
+                ),
+              ),
+            ),
+          ),
+        );
               }),
             ),
           ),
@@ -1460,6 +1470,7 @@ class CakeCardState extends State<CakeCard> with TickerProviderStateMixin {
                                     gradient: const LinearGradient(
                                       colors: [AppColors.pink500, AppColors.salmon400],
                                     ),
+                                    compact: true,
                                     child: Row(
                                       children: [
                                         const Icon(
