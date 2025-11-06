@@ -2,13 +2,42 @@ name: Build and Deploy Flutter App
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ "main" ] # This will run the web deploy on every push to main
+    tags: [ 'v*.*.*' ]   # This will run the release job on every new tag like v1.0.0
 
 jobs:
-  build-android:
-    name: Build Android APK
+  build-and-deploy-web:
+    # This job only runs for pushes to the main branch, not for tags
+    if: github.ref == 'refs/heads/main'
+    name: Build and Deploy Web
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Build Web
+        run: flutter build web --release --base-href /in-bento-cake-kiosk/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
+
+  create-release:
+    # This job only runs when a tag is pushed
+    if: startsWith(github.ref, 'refs/tags/')
+    name: Create Release and Upload APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -31,35 +60,13 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Extract version from pubspec.yaml
+        id: get_version
+        run: | 
+          echo "version=$(grep 'version: ' pubspec.yaml | sed 's/version: //')" >> $GITHUB_OUTPUT
+
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
         with:
-          name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-
-  build-and-deploy-web:
-    name: Build and Deploy Web
-    permissions:
-        contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-
-      - name: Get Flutter dependencies
-        run: flutter pub get
-
-      - name: Build Web
-        # The base-href is set to the name of your repository
-        run: flutter build web --release --base-href /in-bento-cake-kiosk/
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build/web
+          name: Release ${{ steps.get_version.outputs.version }}
+          files: build/app/outputs/flutter-apk/app-release.apk
