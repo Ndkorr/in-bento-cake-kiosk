@@ -495,12 +495,12 @@ class _MenuActionButtonState extends State<_MenuActionButton> {
   Widget build(BuildContext context) {
     final isActive = _isPressed || _isHovered;
     final gradientColors = (widget.gradient as LinearGradient).colors;
-    final outerRadius = widget.compact ? 12.0 : 16.0;
-    final midRadius = widget.compact ? 10.0 : 14.0;
-    final innerRadius = widget.compact ? 8.0 : 12.0;
-    final padV = widget.compact ? 6.0 : 12.0;
-    final padH = widget.compact ? 10.0 : 12.0;
-    final fontSize = widget.compact ? 12.0 : 14.0;
+  final outerRadius = widget.compact ? 11.0 : 16.0;
+  final midRadius = widget.compact ? 9.0 : 14.0;
+  final innerRadius = widget.compact ? 7.0 : 12.0;
+  final padV = widget.compact ? 5.0 : 12.0;
+  final padH = widget.compact ? 6.0 : 12.0;
+  final fontSize = widget.compact ? 12.0 : 14.0;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -716,7 +716,7 @@ class _CartOverlayState extends State<_CartOverlay>
     return GestureDetector(
       onTap: _close,
       child: Container(
-        color: Colors.black.withAlpha(28),
+        color: Colors.black.withAlpha(128),
         child: GestureDetector(
           onTap: () {}, // Prevent closing when tapping overlay content
           child: SlideTransition(
@@ -730,13 +730,13 @@ class _CartOverlayState extends State<_CartOverlay>
                 // Use a stable centered width to avoid odd wrapping on web in landscape
                 double targetWidth = isLandscape ? size.width * 0.55 : math.min(size.width, 1100);
                 // Clamp so it's never too small or too wide
-                targetWidth = targetWidth.clamp(220.0, 1100.0);
+                targetWidth = targetWidth.clamp(520.0, 1100.0);
 
-                return Center(
-                  child: SizedBox(
-                    width: targetWidth,
-                    height: sheetHeight,
-                    child: Container(
+                // Keep the sheet anchored to the bottom; Align above handles vertical placement.
+                return SizedBox(
+                  width: targetWidth,
+                  height: sheetHeight,
+                  child: Container(
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
@@ -891,14 +891,13 @@ class _CartOverlayState extends State<_CartOverlay>
                   ],
                 ),
               ),
-            ),
           );
         }),
-            ),
-          ),
-        ),
       ),
-    );
+    ),
+  ),
+  ),
+);
   }
 }
 
