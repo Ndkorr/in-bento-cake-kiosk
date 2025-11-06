@@ -726,19 +726,21 @@ class _CartOverlayState extends State<_CartOverlay>
               child: Builder(builder: (context) {
                 final size = MediaQuery.of(context).size;
                 final isLandscape = size.width > size.height;
-                final sheetHeight = isLandscape ? size.height * 0.9 : size.height * 0.7;
-                final sheetWidth = isLandscape ? size.width * 0.9 : size.width;
+                final sheetHeight = isLandscape ? size.height * 0.9 : size.height * 0.75;
+                final sheetMaxWidth = isLandscape ? 600.0 : double.infinity;
+                
                 return Padding(
-                  padding: EdgeInsets.symmetric(horizontal: isLandscape ? 24 : 0),
-                  child: Center(
-                    child: SizedBox(
-                      width: math.min(sheetWidth, 1280),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isLandscape ? (size.width - sheetMaxWidth).clamp(0, double.infinity) / 2 : 0,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: sheetMaxWidth),
+                    child: Container(
                       height: sheetHeight,
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-                        ),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                      ),
                         child: Column(
                   children: [
                     // Handle bar
@@ -890,9 +892,8 @@ class _CartOverlayState extends State<_CartOverlay>
                 ),
               ),
             ),
-          ),
-        );
-              }),
+          );
+        }),
             ),
           ),
         ),
