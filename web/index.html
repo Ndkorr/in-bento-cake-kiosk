@@ -44,20 +44,15 @@
   <script>
     window.addEventListener('load', function(ev) {
       // Download main.dart.js
-      const url = 'https://storage.googleapis.com/flutter_app_assets/main.dart.js';
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', url, true);
-      xhr.responseType = 'arraybuffer';
-      xhr.onload = function() {
-        const bytes = new Uint8Array(xhr.response);
-        const blob = new Blob([bytes]);
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('link');
-        link.href = url;
-        link.rel = 'import';
-        document.head.appendChild(link);
-      };
-      xhr.send();
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        }
+      }).then(function(engineInitializer) {
+        return engineInitializer.initializeEngine();
+      }).then(function(appRunner) {
+        return appRunner.runApp();
+      });
     });
   </script>
 </body>
