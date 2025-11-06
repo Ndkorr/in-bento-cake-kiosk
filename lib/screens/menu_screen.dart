@@ -498,8 +498,8 @@ class _MenuActionButtonState extends State<_MenuActionButton> {
     final outerRadius = widget.compact ? 12.0 : 16.0;
     final midRadius = widget.compact ? 10.0 : 14.0;
     final innerRadius = widget.compact ? 8.0 : 12.0;
-    final padV = widget.compact ? 6.0 : 12.0;
-    final padH = widget.compact ? 10.0 : 12.0;
+    final padV = widget.compact ? 4.0 : 12.0;
+    final padH = widget.compact ? 8.0 : 12.0;
     final fontSize = widget.compact ? 12.0 : 14.0;
 
     return MouseRegion(
@@ -722,11 +722,11 @@ class _CartOverlayState extends State<_CartOverlay>
           child: SlideTransition(
             position: _slideAnimation,
             child: Align(
-              alignment: Alignment.bottomCenter,
+              alignment: Alignment.center,
               child: Builder(builder: (context) {
                 final size = MediaQuery.of(context).size;
                 final isLandscape = size.width > size.height;
-                final sheetHeight = isLandscape ? size.height * 0.9 : size.height * 0.75;
+                final sheetHeight = isLandscape ? size.height * 0.85 : size.height * 0.75;
                 final sheetMaxWidth = isLandscape ? 600.0 : double.infinity;
                 
                 return Padding(
