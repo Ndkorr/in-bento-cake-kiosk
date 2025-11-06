@@ -63828,7 +63828,7 @@ A.a5L.prototype={
 $0(){},
 $S:0}
 A.a5K.prototype={
-$1(a){var s,r,q,p,o=null,n=A.cs(a,o,t.w).w.a,m=n.a,l=n.b,k=m>l,j=k?l*0.9:l*0.75,i=B.c.cz(k?m*0.55:Math.min(m,1100),520,1100)
+$1(a){var s,r,q,p,o=null,n=A.cs(a,o,t.w).w.a,m=n.a,l=n.b,k=m>l,j=k?l*0.9:l*0.75,i=B.c.cz(k?m*0.55:Math.min(m,1100),1520,1100)
 m=A.bt(o,o,B.n,o,o,new A.bc(B.h1,o,o,A.c0(2),o,o,B.z),o,4,o,B.zy,o,o,o,40)
 l=this.a
 s=t.p
