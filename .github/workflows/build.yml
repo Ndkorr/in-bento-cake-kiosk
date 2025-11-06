@@ -1,4 +1,4 @@
-name: Build Flutter App
+name: Build and Deploy Flutter App
 
 on:
   push:
@@ -37,9 +37,9 @@ jobs:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
-  build-ios:
-    name: Build iOS IPA
-    runs-on: macos-latest
+  build-and-deploy-web:
+    name: Build and Deploy Web
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,11 +52,12 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      - name: Build IPA
-        run: flutter build ipa --release
+      - name: Build Web
+        # The base-href is set to the name of your repository
+        run: flutter build web --release --base-href /in-bento-cake-kiosk/
 
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          name: release-ipa
-          path: build/ios/ipa/*.ipa
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
