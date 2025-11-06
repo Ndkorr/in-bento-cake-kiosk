@@ -732,11 +732,10 @@ class _CartOverlayState extends State<_CartOverlay>
                 // Clamp so it's never too small or too wide
                 targetWidth = targetWidth.clamp(520.0, 1100.0);
 
-                return Center(
-                  child: SizedBox(
-                    width: targetWidth,
-                    height: sheetHeight,
-                    child: Container(
+                return SizedBox(
+                  width: targetWidth,
+                  height: sheetHeight,
+                  child: Container(
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
@@ -891,7 +890,6 @@ class _CartOverlayState extends State<_CartOverlay>
                   ],
                 ),
               ),
-            ),
           );
         }),
             ),
