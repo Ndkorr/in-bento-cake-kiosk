@@ -73,7 +73,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         borderRadius: BorderRadius.circular(32),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
+                            color: Colors.black.withOpacity(0.12),
                             blurRadius: 32,
                             offset: const Offset(0, 16),
                           ),
@@ -323,7 +323,7 @@ class _OrderNowButtonState extends State<_OrderNowButton> {
                 : null,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
+                color: Colors.black.withOpacity(0.08),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -467,7 +467,7 @@ class _OrderTypeButtonState extends State<_OrderTypeButton> {
             gradient: !isActive ? widget.gradient : null,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: _isHovered ? 0.12 : 0.08),
+                color: Colors.black.withOpacity(_isHovered ? 0.12 : 0.08),
                 blurRadius: _isHovered ? 16 : 12,
                 offset: Offset(0, _isHovered ? 6 : 4),
               ),
