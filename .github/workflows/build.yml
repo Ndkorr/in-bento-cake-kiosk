@@ -39,6 +39,8 @@ jobs:
 
   build-and-deploy-web:
     name: Build and Deploy Web
+    permissions:
+        contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
