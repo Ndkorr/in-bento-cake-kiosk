@@ -73,7 +73,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         borderRadius: BorderRadius.circular(32),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.12),
+                            color: Colors.black.withValues(alpha: 0.12),
                             blurRadius: 32,
                             offset: const Offset(0, 16),
                           ),
@@ -323,7 +323,7 @@ class _OrderNowButtonState extends State<_OrderNowButton> {
                 : null,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -467,7 +467,7 @@ class _OrderTypeButtonState extends State<_OrderTypeButton> {
             gradient: !isActive ? widget.gradient : null,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(_isHovered ? 0.12 : 0.08),
+                color: Colors.black.withValues(alpha: _isHovered ? 0.12 : 0.08),
                 blurRadius: _isHovered ? 16 : 12,
                 offset: Offset(0, _isHovered ? 6 : 4),
               ),
@@ -532,11 +532,11 @@ class _TiledIcons extends StatelessWidget {
       final w = constraints.maxWidth;
       final h = constraints.maxHeight;
 
-      final cell = 120.0;
+  const cell = 120.0;
       final cols = (w / cell).ceil().clamp(3, 12);
       final rows = (h / cell).ceil().clamp(3, 12);
 
-      final icons = <IconData>[
+  const icons = <IconData>[
         Icons.cake_outlined,
         Icons.celebration_outlined,
         Icons.star_border_rounded,
@@ -568,7 +568,7 @@ class _TiledIcons extends StatelessWidget {
               (Offset(left + size / 2, top + size / 2) - Offset(w / 2, h / 2))
                   .distance;
           final maxDist = math.sqrt(w * w + h * h) / 2;
-          final opacityBase = 0.12;
+          const double opacityBase = 0.12;
           final opacity =
               (opacityBase + (distToCenter / maxDist) * 0.06).clamp(0.06, 0.20);
 

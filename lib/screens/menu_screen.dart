@@ -716,13 +716,21 @@ class _CartOverlayState extends State<_CartOverlay>
             position: _slideAnimation,
             child: Align(
               alignment: Alignment.bottomCenter,
-              child: Container(
-                height: MediaQuery.of(context).size.height * 0.7,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-                ),
-                child: Column(
+              child: Builder(builder: (context) {
+                final size = MediaQuery.of(context).size;
+                final isLandscape = size.width > size.height;
+                final sheetHeight = isLandscape ? size.height * 0.9 : size.height * 0.7;
+                return Padding(
+                  padding: EdgeInsets.symmetric(horizontal: isLandscape ? 48 : 0),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1100),
+                    child: Container(
+                      height: sheetHeight,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                      ),
+                      child: Column(
                   children: [
                     // Handle bar
                     Container(
@@ -870,8 +878,11 @@ class _CartOverlayState extends State<_CartOverlay>
                       ),
                     ),
                   ],
-                ),
-              ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
             ),
           ),
         ),
@@ -1024,11 +1035,11 @@ class _TiledIcons extends StatelessWidget {
           final w = constraints.maxWidth;
           final h = constraints.maxHeight;
 
-          final cell = 120.0;
+          const cell = 120.0;
           final cols = (w / cell).ceil().clamp(3, 12);
           final rows = (h / cell).ceil().clamp(3, 12);
 
-          final icons = <IconData>[
+          const icons = <IconData>[
             Icons.cake_outlined,
             Icons.celebration_outlined,
             Icons.star_border_rounded,
@@ -1061,7 +1072,7 @@ class _TiledIcons extends StatelessWidget {
                           Offset(w / 2, h / 2))
                       .distance;
               final maxDist = math.sqrt(w * w + h * h) / 2;
-              final opacityBase = 0.12;
+              const double opacityBase = 0.12;
               final opacity = (opacityBase + (distToCenter / maxDist) * 0.06)
                   .clamp(0.06, 0.20);
 
@@ -1444,39 +1455,28 @@ class CakeCardState extends State<CakeCard> with TickerProviderStateMixin {
                                   ),
                                 ),
                                 if (widget.isSelected)
-                                  GestureDetector(
+                                  _MenuActionButton(
                                     onTap: widget.onViewTap,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      decoration: const BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            AppColors.pink500,
-                                            AppColors.salmon400
-                                          ],
+                                    gradient: const LinearGradient(
+                                      colors: [AppColors.pink500, AppColors.salmon400],
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.visibility,
+                                          size: 18,
                                         ),
-                                        borderRadius: BorderRadius.all(Radius.circular(12)),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.visibility,
-                                            color: Colors.white,
-                                            size: 18,
-                                          ),
-                                          if (widget.viewButtonText != null) ...[
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              widget.viewButtonText!,
-                                              style: GoogleFonts.ubuntu(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 12,
-                                              ),
+                                        if (widget.viewButtonText != null) ...[
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            widget.viewButtonText!,
+                                            style: GoogleFonts.ubuntu(
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 12,
                                             ),
-                                          ]
+                                          ),
                                         ],
-                                      ),
+                                      ],
                                     ),
                                   ),
                               ],

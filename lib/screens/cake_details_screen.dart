@@ -19,7 +19,7 @@ class CakeDetailsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
 
-    final options = [
+    const options = [
       {'title': '2 LAYERS', 'subtitle': 'SAME FLAVOR FOR BOTH LAYERS'},
       {'title': '1 FILLING', 'subtitle': 'SAME FLAVOR AS CAKE LAYER'},
       {'title': 'FROSTING', 'subtitle': 'SAME FLAVOR AS CAKE LAYER'},
@@ -136,7 +136,7 @@ class _OptionButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             colors: [
               AppColors.pink500,
               AppColors.salmon400,
@@ -153,27 +153,113 @@ class _OptionButton extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              title,
-              style: GoogleFonts.ubuntu(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                fontSize: 18,
+            const SizedBox(width: 12),
+            const _PulsatingIcon(icon: Icons.auto_awesome, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.ubuntu(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.ubuntu(
+                      color: AppColors.cream200,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
-            Text(
-              subtitle,
-              style: GoogleFonts.ubuntu(
-                color: AppColors.cream200,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
-            ),
+            const SizedBox(width: 12),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PulsatingIcon extends StatefulWidget {
+  const _PulsatingIcon({required this.icon, this.size = 20});
+
+  final IconData icon;
+  final double size;
+
+  @override
+  State<_PulsatingIcon> createState() => _PulsatingIconState();
+}
+
+class _PulsatingIconState extends State<_PulsatingIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _glow;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat(reverse: true);
+    _scale = Tween<double>(begin: 0.95, end: 1.08).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    _glow = Tween<double>(begin: 0.20, end: 0.40).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          width: widget.size + 12,
+          height: widget.size + 12,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.salmon400.withValues(alpha: _glow.value),
+                blurRadius: 14,
+                spreadRadius: 1,
+              ),
+            ],
+            gradient: const LinearGradient(
+              colors: [AppColors.pink500, AppColors.salmon400],
+            ),
+          ),
+          child: Transform.scale(
+            scale: _scale.value,
+            child: Icon(
+              widget.icon,
+              color: Colors.white,
+              size: widget.size,
+            ),
+          ),
+        );
+      },
     );
   }
 }
