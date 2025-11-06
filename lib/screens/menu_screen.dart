@@ -346,6 +346,7 @@ class _MenuScreenState extends State<MenuScreen>
                     ),
                   );
                 },
+                viewButtonText: 'View',
               ),
             );
           },
@@ -1158,6 +1159,7 @@ class CakeCard extends StatefulWidget {
     required this.isSelected,
     required this.isLandscape,
     required this.onViewTap,
+    this.viewButtonText,
   });
 
   final Map<String, dynamic> cake;
@@ -1165,6 +1167,7 @@ class CakeCard extends StatefulWidget {
   final bool isSelected;
   final bool isLandscape;
   final VoidCallback onViewTap;
+  final String? viewButtonText;
 
   @override
   State<CakeCard> createState() => CakeCardState();
@@ -1444,7 +1447,7 @@ class CakeCardState extends State<CakeCard> with TickerProviderStateMixin {
                                   GestureDetector(
                                     onTap: widget.onViewTap,
                                     child: Container(
-                                      padding: const EdgeInsets.all(6),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                       decoration: const BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: [
@@ -1452,12 +1455,27 @@ class CakeCardState extends State<CakeCard> with TickerProviderStateMixin {
                                             AppColors.salmon400
                                           ],
                                         ),
-                                        shape: BoxShape.circle,
+                                        borderRadius: BorderRadius.all(Radius.circular(12)),
                                       ),
-                                      child: const Icon(
-                                        Icons.visibility,
-                                        color: Colors.white,
-                                        size: 18,
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.visibility,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                          if (widget.viewButtonText != null) ...[
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              widget.viewButtonText!,
+                                              style: GoogleFonts.ubuntu(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ]
+                                        ],
                                       ),
                                     ),
                                   ),

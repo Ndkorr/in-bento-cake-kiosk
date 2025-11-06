@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import 'menu_screen.dart'; // We need _CakeCard, so we import the whole file.
 
+import 'package:in_bento_kiosk/screens/cake_customizer_screen.dart';
+
 class CakeDetailsScreen extends StatelessWidget {
   const CakeDetailsScreen({
     super.key,
@@ -59,6 +61,7 @@ class CakeDetailsScreen extends StatelessWidget {
                           isLandscape: false, // Keep portrait layout
                           onTap: () {}, // No action needed here
                           onViewTap: () {},
+                          viewButtonText: 'Customize',
                         ),
                       ),
                     ),
