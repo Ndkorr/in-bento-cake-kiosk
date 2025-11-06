@@ -398,12 +398,19 @@ class _BottomCartBar extends StatelessWidget {
               gradient: const LinearGradient(
                 colors: [AppColors.pink500, AppColors.salmon400],
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.add_shopping_cart, size: 22),
                   SizedBox(width: 8),
-                  Text('Add to Cart'),
+                  Text(
+                    'Add to Cart',
+                    style: TextStyle(
+                      fontFamily: 'Ubuntu',
+                      fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                  ),
                 ],
               ),
             ),
@@ -716,7 +723,7 @@ class _CartOverlayState extends State<_CartOverlay>
     return GestureDetector(
       onTap: _close,
       child: Container(
-        color: Colors.black.withAlpha(128),
+        color: Colors.black.withAlpha(0),
         child: GestureDetector(
           onTap: () {}, // Prevent closing when tapping overlay content
           child: SlideTransition(
@@ -1475,10 +1482,10 @@ class CakeCardState extends State<CakeCard> with TickerProviderStateMixin {
                                       children: [
                                         const Icon(
                                           Icons.visibility,
-                                          size: 18,
+                                          size: 13,
                                         ),
                                         if (widget.viewButtonText != null) ...[
-                                          const SizedBox(width: 6),
+                                          const SizedBox(width: 3, height: 3),
                                           Text(
                                             widget.viewButtonText!,
                                             style: GoogleFonts.ubuntu(
