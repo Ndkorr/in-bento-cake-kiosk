@@ -495,12 +495,12 @@ class _MenuActionButtonState extends State<_MenuActionButton> {
   Widget build(BuildContext context) {
     final isActive = _isPressed || _isHovered;
     final gradientColors = (widget.gradient as LinearGradient).colors;
-    final outerRadius = widget.compact ? 12.0 : 16.0;
-    final midRadius = widget.compact ? 10.0 : 14.0;
-    final innerRadius = widget.compact ? 8.0 : 12.0;
-    final padV = widget.compact ? 4.0 : 12.0;
-    final padH = widget.compact ? 8.0 : 12.0;
-    final fontSize = widget.compact ? 12.0 : 14.0;
+  final outerRadius = widget.compact ? 11.0 : 16.0;
+  final midRadius = widget.compact ? 9.0 : 14.0;
+  final innerRadius = widget.compact ? 7.0 : 12.0;
+  final padV = widget.compact ? 5.0 : 12.0;
+  final padH = widget.compact ? 6.0 : 12.0;
+  final fontSize = widget.compact ? 12.0 : 14.0;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -721,27 +721,27 @@ class _CartOverlayState extends State<_CartOverlay>
           onTap: () {}, // Prevent closing when tapping overlay content
           child: SlideTransition(
             position: _slideAnimation,
-            child: Align(
-              alignment: Alignment.center,
+              child: Align(
+              alignment: Alignment.bottomCenter,
               child: Builder(builder: (context) {
                 final size = MediaQuery.of(context).size;
                 final isLandscape = size.width > size.height;
-                final sheetHeight = isLandscape ? size.height * 0.85 : size.height * 0.75;
-                final sheetMaxWidth = isLandscape ? 600.0 : double.infinity;
-                
-                return Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isLandscape ? (size.width - sheetMaxWidth).clamp(0, double.infinity) / 2 : 0,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: sheetMaxWidth),
+                final sheetHeight = isLandscape ? size.height * 0.9 : size.height * 0.75;
+                // Use a stable centered width to avoid odd wrapping on web in landscape
+                double targetWidth = isLandscape ? size.width * 0.55 : math.min(size.width, 1100);
+                // Clamp so it's never too small or too wide
+                targetWidth = targetWidth.clamp(520.0, 1100.0);
+
+                return Center(
+                  child: SizedBox(
+                    width: targetWidth,
+                    height: sheetHeight,
                     child: Container(
-                      height: sheetHeight,
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
                       ),
-                        child: Column(
+                      child: Column(
                   children: [
                     // Handle bar
                     Container(
