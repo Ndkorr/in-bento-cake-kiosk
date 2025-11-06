@@ -241,7 +241,7 @@ class _PulsatingIconState extends State<_PulsatingIcon>
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: AppColors.salmon400.withValues(alpha: _glow.value),
+                color: AppColors.salmon400.withOpacity(_glow.value),
                 blurRadius: 14,
                 spreadRadius: 1,
               ),

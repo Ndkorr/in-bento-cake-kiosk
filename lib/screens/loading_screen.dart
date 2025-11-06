@@ -159,7 +159,7 @@ class _LoadingOverlayState extends State<LoadingOverlay>
   @override
   Widget build(BuildContext context) {
     return Container(
-  color: Colors.black.withValues(alpha: 0.5),
+  color: Colors.black.withOpacity(0.5),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -234,7 +234,7 @@ class _AnimatedIconCircle extends StatelessWidget {
             height: 32,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: color.withValues(alpha: 0.8), width: 3),
+              border: Border.all(color: color.withOpacity(0.8), width: 3),
             ),
           ),
         ),
