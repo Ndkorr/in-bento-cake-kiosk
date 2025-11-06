@@ -38,7 +38,8 @@
   </script>
   <!-- This script adds the flutter initialization JS code -->
   <script src="flutter.js" defer></script>
-  <script src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js" type="module"></script>
+  <!-- Prefer the bundled model-viewer script to avoid CDN/CORS issues on GitHub Pages -->
+  <script src="assets/packages/model_viewer_plus/assets/model-viewer.min.js" type="module"></script>
 </head>
 <body>
   <script>
