@@ -26,8 +26,8 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      - name: Build Web
-        run: flutter build web --release --base-href /in-bento-cake-kiosk/ --web-renderer html
+      - name: Build Web (CanvasKit)
+        run: flutter build web --release --base-href /in-bento-cake-kiosk/ --web-renderer canvaskit
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
