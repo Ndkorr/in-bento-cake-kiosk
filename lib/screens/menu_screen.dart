@@ -45,12 +45,6 @@ class _MenuScreenState extends State<MenuScreen>
       'price': 249.00,
       'image': 'assets/images/cake_3.png',
     },
-    {
-      'name': 'Red Velvet',
-      'description': 'Smooth red velvet with cream cheese',
-      'price': 329.00,
-      'image': 'assets/images/cake_1.png',
-    },
   ];
 
   @override
@@ -684,9 +678,10 @@ class _CartOverlay extends StatefulWidget {
 }
 
 class _CartOverlayState extends State<_CartOverlay>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
+  late AnimationController _pulseController;
 
   @override
   void initState() {
@@ -697,19 +692,22 @@ class _CartOverlayState extends State<_CartOverlay>
     );
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 1),
-      end: const Offset(
-        0,
-        0,
-      ),
+      end: const Offset(0, 0),
     ).animate(
       CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
     );
     _slideController.forward();
+
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _slideController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -728,183 +726,248 @@ class _CartOverlayState extends State<_CartOverlay>
           onTap: () {}, // Prevent closing when tapping overlay content
           child: SlideTransition(
             position: _slideAnimation,
-              child: Align(
+            child: Align(
               alignment: Alignment.bottomCenter,
-              child: Builder(builder: (context) {
-                final size = MediaQuery.of(context).size;
-                final isLandscape = size.width > size.height;
-                final sheetHeight = isLandscape ? size.height * 0.9 : size.height * 0.75;
-                // Use a stable centered width to avoid odd wrapping on web in landscape
-                double targetWidth = isLandscape ? size.width * 0.55 : math.min(size.width, 1100);
-                // Clamp so it's never too small or too wide
-                targetWidth = targetWidth.clamp(520.0, 1100.0);
+              child: Builder(
+                builder: (context) {
+                  final size = MediaQuery.of(context).size;
+                  final isLandscape = size.width > size.height;
+                  final sheetHeight =
+                      isLandscape ? size.height * 0.9 : size.height * 0.75;
+                  // Use a stable centered width to avoid odd wrapping on web in landscape
+                  double targetWidth = isLandscape
+                      ? size.width * 0.55
+                      : math.min(size.width, 1100);
+                  // Clamp so it's never too small or too wide
+                  targetWidth = (targetWidth.clamp(520.0, 1100.0));
 
-                // Keep the sheet anchored to the bottom; Align above handles vertical placement.
-                return SizedBox(
-                  width: targetWidth,
-                  height: sheetHeight,
-                  child: Container(
+                  // Keep the sheet anchored to the bottom; Align above handles vertical placement.
+                  return SizedBox(
+                    width: targetWidth,
+                    height: sheetHeight,
+                    child: Container(
                       decoration: const BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(32)),
                       ),
                       child: Column(
-                  children: [
-                    // Handle bar
-                    Container(
-                      margin: const EdgeInsets.only(top: 12),
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Row(
                         children: [
-                          Text(
-                            'Your Cart',
-                            style: GoogleFonts.ubuntu(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
-                              fontStyle: FontStyle.italic,
-                              color: AppColors.pink700,
+                          // Handle bar
+                          Container(
+                            margin: const EdgeInsets.only(top: 12),
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(2),
                             ),
                           ),
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.close, size: 28),
-                            onPressed: _close,
-                            color: AppColors.pink700,
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Cart items
-                    Expanded(
-                      child: widget.cart.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.shopping_cart_outlined,
-                                    size: 80,
-                                    color: Colors.grey[300],
+                          // Header
+                          Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'Your Cart',
+                                  style: GoogleFonts.ubuntu(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                    fontStyle: FontStyle.italic,
+                                    color: AppColors.pink700,
                                   ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Your cart is empty',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      color: Colors.grey[400],
+                                ),
+                                const Spacer(),
+                                // Logo with pulsating background
+                                AnimatedBuilder(
+                                  animation: _pulseController,
+                                  builder: (context, child) {
+                                    return Container(
+                                      width: 50,
+                                      height: 50,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            AppColors.pink500.withAlpha(
+                                              (255 *
+                                                      (0.1 +
+                                                          (_pulseController
+                                                                  .value *
+                                                              0.15)))
+                                                  .round(),
+                                            ),
+                                            AppColors.peach300.withAlpha(
+                                              (255 *
+                                                      (0.1 +
+                                                          (_pulseController
+                                                                  .value *
+                                                              0.15)))
+                                                  .round(),
+                                            ),
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.all(8),
+                                      child: child,
+                                    );
+                                  },
+                                  child: Image.asset(
+                                    'assets/icons/icon-original.png',
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.cake,
+                                        color: AppColors.pink500),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.close, size: 28),
+                                  onPressed: _close,
+                                  color: AppColors.pink700,
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Cart items
+                          Expanded(
+                            child: widget.cart.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.shopping_cart_outlined,
+                                          size: 80,
+                                          color: Colors.grey[300],
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Your cart is empty',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 16,
+                                            color: Colors.grey[400],
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              itemCount: widget.cart.length,
-                              itemBuilder: (context, index) {
-                                final cakeIndex = widget.cart.keys.elementAt(
-                                  index,
-                                );
-                                final quantity = widget.cart[cakeIndex]!;
-                                final cake = widget.cakes[cakeIndex];
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
+                                    itemCount: widget.cart.length,
+                                    itemBuilder: (context, index) {
+                                      final cakeIndex =
+                                          widget.cart.keys.elementAt(index);
+                                      final quantity = widget.cart[cakeIndex]!;
+                                      final cake = widget.cakes[cakeIndex];
 
-                                return _CartItem(
-                                  cake: cake,
-                                  quantity: quantity,
-                                  onIncrease: () => widget.onUpdateQuantity(
-                                    cakeIndex,
-                                    quantity + 1,
+                                      return _CartItem(
+                                        cake: cake,
+                                        quantity: quantity,
+                                        onIncrease: () => widget.onUpdateQuantity(
+                                          cakeIndex,
+                                          quantity + 1,
+                                        ),
+                                        onDecrease: () => widget.onUpdateQuantity(
+                                          cakeIndex,
+                                          quantity - 1,
+                                        ),
+                                        onDelete: () =>
+                                            widget.onUpdateQuantity(cakeIndex, 0),
+                                      );
+                                    },
                                   ),
-                                  onDecrease: () => widget.onUpdateQuantity(
-                                    cakeIndex,
-                                    quantity - 1,
+                          ),
+                          // Total and Checkout
+                          Container(
+                            color: AppColors.cream200,
+                            child: Stack(
+                              children: [
+                                // Background with tiled icons
+                                const Positioned.fill(
+                                  child: _TiledIcons(),
+                                ),
+                                // Content
+                                Container(
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withAlpha(20),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, -4),
+                                      ),
+                                    ],
                                   ),
-                                  onDelete: () =>
-                                      widget.onUpdateQuantity(cakeIndex, 0),
-                                );
-                              },
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Total',
+                                            style: GoogleFonts.ubuntu(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.w900,
+                                              color: AppColors.pink700,
+                                            ),
+                                          ),
+                                          Text(
+                                            '₱${widget.totalPrice.toStringAsFixed(2)}',
+                                            style: GoogleFonts.ubuntu(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.w900,
+                                              color: AppColors.pink700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _MenuActionButton(
+                                        onTap: () {
+                                          // TODO: Navigate to checkout
+                                          debugPrint('Checkout tapped');
+                                        },
+                                        gradient: const LinearGradient(
+                                          colors: [
+                                            AppColors.pink500,
+                                            AppColors.salmon400
+                                          ],
+                                        ),
+                                        child: SizedBox(
+                                          width: double.infinity,
+                                          child: Text(
+                                            'Proceed to Checkout',
+                                            textAlign: TextAlign.center,
+                                            style: GoogleFonts.ubuntu(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                    ),
-                    // Total and Checkout
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: AppColors.cream200,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withAlpha(20),
-                            blurRadius: 12,
-                            offset: const Offset(0, -4),
                           ),
                         ],
                       ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Total',
-                                style: GoogleFonts.ubuntu(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.pink700,
-                                ),
-                              ),
-                              Text(
-                                '₱${widget.totalPrice.toStringAsFixed(2)}',
-                                style: GoogleFonts.ubuntu(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.pink700,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          _MenuActionButton(
-                            onTap: () {
-                              // TODO: Navigate to checkout
-                              debugPrint('Checkout tapped');
-                            },
-                            gradient: const LinearGradient(
-                              colors: [AppColors.pink500, AppColors.salmon400],
-                            ),
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: Text(
-                                'Proceed to Checkout',
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.ubuntu(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
-          );
-        }),
+            ),
+          ),
+        ),
       ),
-    ),
-  ),
-  ),
-);
+    );
   }
 }
 
@@ -1045,72 +1108,68 @@ class _TiledIcons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.cream200,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final w = constraints.maxWidth;
-          final h = constraints.maxHeight;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final h = constraints.maxHeight;
 
-          const cell = 120.0;
-          final cols = (w / cell).ceil().clamp(3, 12);
-          final rows = (h / cell).ceil().clamp(3, 12);
+        const cell = 120.0;
+        final cols = (w / cell).ceil().clamp(3, 12);
+        final rows = (h / cell).ceil().clamp(3, 12);
 
-          const icons = <IconData>[
-            Icons.cake_outlined,
-            Icons.celebration_outlined,
-            Icons.star_border_rounded,
-            Icons.cookie_outlined,
-            Icons.local_cafe_outlined,
-            Icons.bakery_dining_outlined,
-            Icons.favorite_border,
-            Icons.card_giftcard_outlined,
-          ];
+        const icons = <IconData>[
+          Icons.cake_outlined,
+          Icons.celebration_outlined,
+          Icons.star_border_rounded,
+          Icons.cookie_outlined,
+          Icons.local_cafe_outlined,
+          Icons.bakery_dining_outlined,
+          Icons.favorite_border,
+          Icons.card_giftcard_outlined,
+        ];
 
-          final widgets = <Widget>[];
-          for (var r = 0; r < rows; r++) {
-            for (var c = 0; c < cols; c++) {
-              final idx = (r * cols + c) % icons.length;
-              final fractionX = (c + 0.5) / cols;
-              final fractionY = (r + 0.5) / rows;
+        final widgets = <Widget>[];
+        for (var r = 0; r < rows; r++) {
+          for (var c = 0; c < cols; c++) {
+            final idx = (r * cols + c) % icons.length;
+            final fractionX = (c + 0.5) / cols;
+            final fractionY = (r + 0.5) / rows;
 
-              final offsetX =
-                  (math.sin((r + 1) * 1.3) + math.cos((c + 1) * 0.7)) * 6;
-              final offsetY =
-                  (math.cos((c + 1) * 1.1) + math.sin((r + 1) * 0.9)) * 6;
+            final offsetX =
+                (math.sin((r + 1) * 1.3) + math.cos((c + 1) * 0.7)) * 6;
+            final offsetY =
+                (math.cos((c + 1) * 1.1) + math.sin((r + 1) * 0.9)) * 6;
 
-              final left = (fractionX * w) + offsetX - (cell * 0.25);
-              final top = (fractionY * h) + offsetY - (cell * 0.25);
+            final left = (fractionX * w) + offsetX - (cell * 0.25);
+            final top = (fractionY * h) + offsetY - (cell * 0.25);
 
-              final size = (cell * 0.28) + ((r + c) % 3) * 6;
+            final size = (cell * 0.28) + ((r + c) % 3) * 6;
 
-              final distToCenter =
-                  (Offset(left + size / 2, top + size / 2) -
-                          Offset(w / 2, h / 2))
-                      .distance;
-              final maxDist = math.sqrt(w * w + h * h) / 2;
-              const double opacityBase = 0.12;
-              final opacity = (opacityBase + (distToCenter / maxDist) * 0.06)
-                  .clamp(0.06, 0.20);
+            final distToCenter =
+                (Offset(left + size / 2, top + size / 2) - Offset(w / 2, h / 2))
+                    .distance;
+            final maxDist = math.sqrt(w * w + h * h) / 2;
+            const double opacityBase = 0.12;
+            final opacity = (opacityBase + (distToCenter / maxDist) * 0.06)
+                .clamp(0.06, 0.20);
 
-              widgets.add(
-                Positioned(
-                  left: left.clamp(-cell, w + cell),
-                  top: top.clamp(-cell, h + cell),
-                  child: _AnimatedIcon(
-                    icon: icons[idx],
-                    size: size,
-                    opacity: opacity,
-                    index: r * cols + c,
-                  ),
+            widgets.add(
+              Positioned(
+                left: left.clamp(-cell, w + cell),
+                top: top.clamp(-cell, h + cell),
+                child: _AnimatedIcon(
+                  icon: icons[idx],
+                  size: size,
+                  opacity: opacity,
+                  index: r * cols + c,
                 ),
-              );
-            }
+              ),
+            );
           }
+        }
 
-          return Stack(children: widgets);
-        },
-      ),
+        return Stack(children: widgets);
+      },
     );
   }
 }
