@@ -46,11 +46,19 @@
 <body>
   <script>
     window.addEventListener('load', function(ev) {
-      _flutter.loader.load({
+      // Use the backward-compatible API which doesn't require _flutter.buildConfig
+      // and works reliably on GitHub Pages.
+      _flutter.loader.loadEntrypoint({
         serviceWorker: {
           serviceWorkerVersion: serviceWorkerVersion,
         },
-        renderer: 'html'
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine({
+            renderer: 'html'
+          }).then(function(appRunner) {
+            appRunner.runApp();
+          });
+        }
       });
     });
   </script>
