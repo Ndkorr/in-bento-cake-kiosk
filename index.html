@@ -36,7 +36,7 @@
   <script>
     // The value below is injected by flutter build in some hosting setups.
     // To avoid template engine conflicts on GitHub Pages, keep a safe default.
-    const serviceWorkerVersion = "1379846668"; // Flutter will still register SW correctly.
+    const serviceWorkerVersion = "2848109669"; // Flutter will still register SW correctly.
   </script>
   <!-- This script adds the flutter initialization JS code -->
   <script src="flutter.js" defer></script>
@@ -46,15 +46,14 @@
 <body>
   <script>
     window.addEventListener('load', function(ev) {
-      // Use the backward-compatible API which doesn't require _flutter.buildConfig
-      // and works reliably on GitHub Pages.
+      // Keep the compatible API and initialize CanvasKit for sharper visuals.
       _flutter.loader.loadEntrypoint({
         serviceWorker: {
           serviceWorkerVersion: serviceWorkerVersion,
         },
         onEntrypointLoaded: function(engineInitializer) {
           engineInitializer.initializeEngine({
-            renderer: 'html'
+            renderer: 'canvaskit'
           }).then(function(appRunner) {
             appRunner.runApp();
           });
