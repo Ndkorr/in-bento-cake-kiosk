@@ -31,8 +31,34 @@
 
   <title>in_bento_kiosk</title>
   <link rel="manifest" href="manifest.json">
+
+  <script>
+    // The value below is injected by flutter build, do not touch.
+    const serviceWorkerVersion = null;
+  </script>
+  <!-- This script adds the flutter initialization JS code -->
+  <script src="flutter.js" defer></script>
+  <script src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js" type="module"></script>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.addEventListener('load', function(ev) {
+      // Download main.dart.js
+      const url = 'https://storage.googleapis.com/flutter_app_assets/main.dart.js';
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.responseType = 'arraybuffer';
+      xhr.onload = function() {
+        const bytes = new Uint8Array(xhr.response);
+        const blob = new Blob([bytes]);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('link');
+        link.href = url;
+        link.rel = 'import';
+        document.head.appendChild(link);
+      };
+      xhr.send();
+    });
+  </script>
 </body>
 </html>
