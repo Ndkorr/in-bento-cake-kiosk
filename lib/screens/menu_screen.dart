@@ -495,12 +495,12 @@ class _MenuActionButtonState extends State<_MenuActionButton> {
   Widget build(BuildContext context) {
     final isActive = _isPressed || _isHovered;
     final gradientColors = (widget.gradient as LinearGradient).colors;
-  final outerRadius = widget.compact ? 11.0 : 16.0;
-  final midRadius = widget.compact ? 9.0 : 14.0;
-  final innerRadius = widget.compact ? 7.0 : 12.0;
-  final padV = widget.compact ? 5.0 : 12.0;
-  final padH = widget.compact ? 6.0 : 12.0;
-  final fontSize = widget.compact ? 12.0 : 14.0;
+    final outerRadius = widget.compact ? 12.0 : 16.0;
+    final midRadius = widget.compact ? 10.0 : 14.0;
+    final innerRadius = widget.compact ? 8.0 : 12.0;
+    final padV = widget.compact ? 6.0 : 12.0;
+    final padH = widget.compact ? 10.0 : 12.0;
+    final fontSize = widget.compact ? 12.0 : 14.0;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -732,10 +732,11 @@ class _CartOverlayState extends State<_CartOverlay>
                 // Clamp so it's never too small or too wide
                 targetWidth = targetWidth.clamp(520.0, 1800.0);
 
-                return SizedBox(
-                  width: targetWidth,
-                  height: sheetHeight,
-                  child: Container(
+                return Center(
+                  child: SizedBox(
+                    width: targetWidth,
+                    height: sheetHeight,
+                    child: Container(
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
