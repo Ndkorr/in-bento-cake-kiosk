@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
-import 'package:in_bento_kiosk/widgets/cake_card.dart';
-
+// Use CakeCard from menu_screen
+import 'menu_screen.dart';
 import 'cake_customizer_screen.dart';
 
 class CakeDetailsScreen extends StatelessWidget {
