@@ -41,6 +41,12 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   List<String> _selectedToppings = [];
   bool _toppingsReadOnly = false;
 
+  // Track completion status
+  bool _layersCompleted = false;
+  bool _fillingsCompleted = false;
+  bool _frostingCompleted = false;
+  bool _toppingsCompleted = false;
+
   @override
   void initState() {
     super.initState();
@@ -63,10 +69,25 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
     super.dispose();
   }
 
+  void _resetAllSelections() {
+    setState(() {
+      _selectedLayers = [];
+      _selectedFillings = [];
+      _selectedFrosting = null;
+      _selectedToppings = [];
+      _layersCompleted = false;
+      _fillingsCompleted = false;
+      _frostingCompleted = false;
+      _toppingsCompleted = false;
+    });
+  }
+
   void _showLayerSelectionScreen(int layers) {
     setState(() {
       _numberOfLayers = layers;
-      _selectedLayers = List.filled(layers, null);
+      if (_selectedLayers.isEmpty) {
+        _selectedLayers = List.filled(layers, null);
+      }
       _showLayerSelection = true;
       _showFillingSelection = false;
       _showFrostingSelection = false;
@@ -78,7 +99,9 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   void _showFillingSelectionScreen(int fillings) {
     setState(() {
       _numberOfFillings = fillings;
-      _selectedFillings = List.filled(fillings, null);
+      if (_selectedFillings.isEmpty) {
+        _selectedFillings = List.filled(fillings, null);
+      }
       _showFillingSelection = true;
       _showLayerSelection = false;
       _showFrostingSelection = false;
@@ -89,7 +112,6 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
 
   void _showFrostingSelectionScreen() {
     setState(() {
-      _selectedFrosting = null;
       _showFrostingSelection = true;
       _showLayerSelection = false;
       _showFillingSelection = false;
@@ -102,16 +124,17 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
     setState(() {
       _maxToppings = maxToppings;
       _toppingsReadOnly = readOnly;
-      _selectedToppings.clear();
-      if (readOnly) {
-        // For Chocolate Dream, select all toppings by default
-        _selectedToppings = [
-          'Pretzels',
-          'Cherries',
-          'Sprinkles',
-          'Mango',
-          'Chocolate'
-        ];
+      if (_selectedToppings.isEmpty) {
+        if (readOnly) {
+          // For Chocolate Dream, select all toppings by default
+          _selectedToppings = [
+            'Pretzels',
+            'Cherries',
+            'Sprinkles',
+            'Mango',
+            'Chocolate'
+          ];
+        }
       }
       _showToppingSelection = true;
       _showLayerSelection = false;
@@ -132,13 +155,31 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
     });
   }
 
-  void _hideToppingSelectionWithPopup() {
-    _slideController.reverse().then((_) {
-      setState(() {
-        _showToppingSelection = false;
-        _showToppingDetailPopup = true;
+  void _hideToppingSelectionWithValidation() {
+    // For read-only toppings (Chocolate Dream), skip validation
+    if (_toppingsReadOnly) {
+      _slideController.reverse().then((_) {
+        setState(() {
+          _showToppingSelection = false;
+          _toppingsCompleted = true;
+          _showToppingDetailPopup = true;
+        });
       });
-    });
+      return;
+    }
+
+    // For editable toppings, validate selection
+    if (_selectedToppings.isEmpty) {
+      _showError('Please select at least one topping.');
+    } else {
+      _slideController.reverse().then((_) {
+        setState(() {
+          _showToppingSelection = false;
+          _toppingsCompleted = true;
+          _showToppingDetailPopup = true;
+        });
+      });
+    }
   }
 
   void _hideDetailPopup() {
@@ -164,6 +205,9 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
     if (_selectedLayers.any((layer) => layer == null)) {
       _showError('Please select a flavor for each layer.');
     } else {
+      setState(() {
+        _layersCompleted = true;
+      });
       _hideSelection();
     }
   }
@@ -172,6 +216,9 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
     if (_selectedFillings.any((filling) => filling == null)) {
       _showError('Please select a flavor for each filling.');
     } else {
+      setState(() {
+        _fillingsCompleted = true;
+      });
       _hideSelection();
     }
   }
@@ -180,8 +227,33 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
     if (_selectedFrosting == null) {
       _showError('Please select a frosting flavor.');
     } else {
+      setState(() {
+        _frostingCompleted = true;
+      });
       _hideSelection();
     }
+  }
+
+  String _getLayersSubtitle() {
+    if (!_layersCompleted) return 'OF YOUR CHOSEN VARIATION';
+    return _selectedLayers.join(', ');
+  }
+
+  String _getFillingsSubtitle() {
+    if (!_fillingsCompleted) return 'OF YOUR CHOICE';
+    return _selectedFillings.join(', ');
+  }
+
+  String _getFrostingSubtitle() {
+    if (!_frostingCompleted) return 'OF YOUR CHOICE';
+    return _selectedFrosting ?? 'OF YOUR CHOICE';
+  }
+
+  String _getToppingsSubtitle(bool readOnly) {
+    if (!_toppingsCompleted) {
+      return readOnly ? 'ALL SELECTED' : 'OF YOUR CHOICE';
+    }
+    return _selectedToppings.join(', ');
   }
 
   List<Map<String, String>> _getOptionsForCake() {
@@ -206,11 +278,12 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         },
         {
           'title': '2 TOPPINGS',
-          'subtitle': 'OF YOUR CHOICE',
+          'subtitle': _getToppingsSubtitle(false),
           'clickable': 'true',
           'type': 'toppings',
           'count': '2',
-          'readonly': 'false'
+          'readonly': 'false',
+          'completed': _toppingsCompleted.toString()
         },
         {
           'title': 'DEDICATION',
@@ -222,31 +295,35 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       return [
         {
           'title': '3 LAYERS',
-          'subtitle': 'OF YOUR CHOSEN VARIATION',
+          'subtitle': _getLayersSubtitle(),
           'clickable': 'true',
           'type': 'layers',
-          'count': '3'
+          'count': '3',
+          'completed': _layersCompleted.toString()
         },
         {
           'title': '2 FILLINGS',
-          'subtitle': 'OF YOUR CHOICE',
+          'subtitle': _getFillingsSubtitle(),
           'clickable': 'true',
           'type': 'fillings',
-          'count': '2'
+          'count': '2',
+          'completed': _fillingsCompleted.toString()
         },
         {
           'title': 'FROSTING',
-          'subtitle': 'OF YOUR CHOICE',
+          'subtitle': _getFrostingSubtitle(),
           'clickable': 'true',
-          'type': 'frosting'
+          'type': 'frosting',
+          'completed': _frostingCompleted.toString()
         },
         {
           'title': '5 TOPPINGS',
-          'subtitle': 'ALL SELECTED',
+          'subtitle': _getToppingsSubtitle(true),
           'clickable': 'true',
           'type': 'toppings',
           'count': '5',
-          'readonly': 'true'
+          'readonly': 'true',
+          'completed': _toppingsCompleted.toString()
         },
         {
           'title': 'DEDICATION',
@@ -258,31 +335,35 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       return [
         {
           'title': '2 LAYERS',
-          'subtitle': 'OF YOUR CHOSEN VARIATION',
+          'subtitle': _getLayersSubtitle(),
           'clickable': 'true',
           'type': 'layers',
-          'count': '2'
+          'count': '2',
+          'completed': _layersCompleted.toString()
         },
         {
           'title': '1 FILLING',
-          'subtitle': 'OF YOUR CHOICE',
+          'subtitle': _getFillingsSubtitle(),
           'clickable': 'true',
           'type': 'fillings',
-          'count': '1'
+          'count': '1',
+          'completed': _fillingsCompleted.toString()
         },
         {
           'title': 'FROSTING',
-          'subtitle': 'OF YOUR CHOICE',
+          'subtitle': _getFrostingSubtitle(),
           'clickable': 'true',
-          'type': 'frosting'
+          'type': 'frosting',
+          'completed': _frostingCompleted.toString()
         },
         {
           'title': '3 TOPPINGS',
-          'subtitle': 'OF YOUR CHOICE',
+          'subtitle': _getToppingsSubtitle(false),
           'clickable': 'true',
           'type': 'toppings',
           'count': '3',
-          'readonly': 'false'
+          'readonly': 'false',
+          'completed': _toppingsCompleted.toString()
         },
         {
           'title': 'DEDICATION',
@@ -311,11 +392,12 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       },
       {
         'title': '2 TOPPINGS',
-        'subtitle': 'OF YOUR CHOICE',
+        'subtitle': _getToppingsSubtitle(false),
         'clickable': 'true',
         'type': 'toppings',
         'count': '2',
-        'readonly': 'false'
+        'readonly': 'false',
+        'completed': _toppingsCompleted.toString()
       },
       {'title': 'DEDICATION', 'subtitle': 'PERSONALIZED', 'clickable': 'false'},
     ];
@@ -390,10 +472,13 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                             itemBuilder: (context, index) {
                               final isClickable =
                                   options[index]['clickable'] == 'true';
+                              final isCompleted =
+                                  options[index]['completed'] == 'true';
                               return _OptionButton(
                                 title: options[index]['title']!,
                                 subtitle: options[index]['subtitle']!,
                                 isClickable: isClickable,
+                                isCompleted: isCompleted,
                                 onTap: isClickable
                                     ? () {
                                         final type = options[index]['type'];
@@ -437,7 +522,10 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                       child: IconButton(
                         icon: const Icon(Icons.arrow_back_rounded,
                             color: AppColors.pink700, size: 28),
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () {
+                          _resetAllSelections();
+                          Navigator.pop(context);
+                        },
                       ),
                     ),
                   ],
@@ -509,7 +597,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                     }
                   });
                 },
-                onBack: _hideToppingSelectionWithPopup,
+                onBack: _hideToppingSelectionWithValidation,
               ),
             ),
           // Topping detail popup
@@ -1663,12 +1751,14 @@ class _OptionButton extends StatefulWidget {
     required this.title,
     required this.subtitle,
     required this.isClickable,
+    required this.isCompleted,
     this.onTap,
   });
 
   final String title;
   final String subtitle;
   final bool isClickable;
+  final bool isCompleted;
   final VoidCallback? onTap;
 
   @override
@@ -1680,6 +1770,9 @@ class _OptionButtonState extends State<_OptionButton> {
 
   @override
   Widget build(BuildContext context) {
+    // Only show animations if not completed and is clickable
+    final showAnimations = widget.isClickable && !widget.isCompleted;
+
     return MouseRegion(
       cursor: widget.isClickable
           ? SystemMouseCursors.click
@@ -1706,7 +1799,7 @@ class _OptionButtonState extends State<_OptionButton> {
         onTap: widget.isClickable ? null : widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          child: widget.isClickable
+          child: showAnimations
               ? _CirculatingBorderWrapper(
                   child: _buildContent(),
                 )
@@ -1717,6 +1810,9 @@ class _OptionButtonState extends State<_OptionButton> {
   }
 
   Widget _buildContent() {
+    // Only show animations if not completed and is clickable
+    final showAnimations = widget.isClickable && !widget.isCompleted;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
@@ -1745,11 +1841,34 @@ class _OptionButtonState extends State<_OptionButton> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const SizedBox(width: 12),
-          _PulsatingIcon(
-            icon: Icons.auto_awesome,
-            size: 22,
-            isPressed: _isPressed,
-          ),
+          // Show pulsating icon only if animations are enabled
+          if (showAnimations)
+            _PulsatingIcon(
+              icon: Icons.auto_awesome,
+              size: 22,
+              isPressed: _isPressed,
+            )
+          else
+            Container(
+              width: 22 + 12,
+              height: 22 + 12,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: _isPressed
+                    ? const LinearGradient(
+                        colors: [Colors.white, Colors.white],
+                      )
+                    : const LinearGradient(
+                        colors: [AppColors.pink500, AppColors.salmon400],
+                      ),
+              ),
+              child: Icon(
+                Icons.check,
+                color: _isPressed ? AppColors.pink700 : Colors.white,
+                size: 22,
+              ),
+            ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1775,10 +1894,17 @@ class _OptionButtonState extends State<_OptionButton> {
               ],
             ),
           ),
-          // Show pulsating chevron icon if clickable
+          // Show chevron only if clickable and animations enabled
           if (widget.isClickable) ...[
             const SizedBox(width: 8),
-            _PulsatingChevron(isPressed: _isPressed),
+            if (showAnimations)
+              _PulsatingChevron(isPressed: _isPressed)
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                color: _isPressed ? AppColors.pink700 : Colors.white,
+                size: 28,
+              ),
           ],
           const SizedBox(width: 12),
         ],

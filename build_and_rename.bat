@@ -11,10 +11,11 @@ echo IPA built and renamed to: build\app\outputs\flutter-ios\inbento-kiosk-v1.0.
 pause
 
 git add .
-git commit -m "Bump version to %VERSION%"
-git push origin main
 git tag v%VERSION%
 git push origin v%VERSION%
+git commit -m "Bump version to %VERSION%"
+git push origin main
+
 
 
 git add .
