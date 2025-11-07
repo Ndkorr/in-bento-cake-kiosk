@@ -12,10 +12,7 @@ pause
 
 git add pubspec.yaml
 git commit -m "Bump version to 3.1.0"
-git push origin main
-
 git tag v3.1.0
-
 git push origin v3.1.0
 
 
