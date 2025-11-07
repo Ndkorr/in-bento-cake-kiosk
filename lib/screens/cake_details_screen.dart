@@ -28,11 +28,18 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   bool _showLayerSelection = false;
   bool _showFillingSelection = false;
   bool _showFrostingSelection = false;
+  bool _showToppingSelection = false;
+  bool _showToppingDetailPopup = false;
+  bool _showErrorPopup = false;
+  String _errorMessage = '';
   int _numberOfLayers = 2;
   int _numberOfFillings = 1;
+  int _maxToppings = 2;
   List<String?> _selectedLayers = [];
   List<String?> _selectedFillings = [];
   String? _selectedFrosting;
+  List<String> _selectedToppings = [];
+  bool _toppingsReadOnly = false;
 
   @override
   void initState() {
@@ -63,6 +70,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       _showLayerSelection = true;
       _showFillingSelection = false;
       _showFrostingSelection = false;
+      _showToppingSelection = false;
     });
     _slideController.forward();
   }
@@ -74,15 +82,41 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       _showFillingSelection = true;
       _showLayerSelection = false;
       _showFrostingSelection = false;
+      _showToppingSelection = false;
     });
     _slideController.forward();
   }
 
   void _showFrostingSelectionScreen() {
     setState(() {
+      _selectedFrosting = null;
       _showFrostingSelection = true;
       _showLayerSelection = false;
       _showFillingSelection = false;
+      _showToppingSelection = false;
+    });
+    _slideController.forward();
+  }
+
+  void _showToppingSelectionScreen(int maxToppings, bool readOnly) {
+    setState(() {
+      _maxToppings = maxToppings;
+      _toppingsReadOnly = readOnly;
+      _selectedToppings.clear();
+      if (readOnly) {
+        // For Chocolate Dream, select all toppings by default
+        _selectedToppings = [
+          'Pretzels',
+          'Cherries',
+          'Sprinkles',
+          'Mango',
+          'Chocolate'
+        ];
+      }
+      _showToppingSelection = true;
+      _showLayerSelection = false;
+      _showFillingSelection = false;
+      _showFrostingSelection = false;
     });
     _slideController.forward();
   }
@@ -93,8 +127,61 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         _showLayerSelection = false;
         _showFillingSelection = false;
         _showFrostingSelection = false;
+        _showToppingSelection = false;
       });
     });
+  }
+
+  void _hideToppingSelectionWithPopup() {
+    _slideController.reverse().then((_) {
+      setState(() {
+        _showToppingSelection = false;
+        _showToppingDetailPopup = true;
+      });
+    });
+  }
+
+  void _hideDetailPopup() {
+    setState(() {
+      _showToppingDetailPopup = false;
+    });
+  }
+
+  void _showError(String message) {
+    setState(() {
+      _errorMessage = message;
+      _showErrorPopup = true;
+    });
+  }
+
+  void _hideErrorPopup() {
+    setState(() {
+      _showErrorPopup = false;
+    });
+  }
+
+  void _handleLayerExit() {
+    if (_selectedLayers.any((layer) => layer == null)) {
+      _showError('Please select a flavor for each layer.');
+    } else {
+      _hideSelection();
+    }
+  }
+
+  void _handleFillingExit() {
+    if (_selectedFillings.any((filling) => filling == null)) {
+      _showError('Please select a flavor for each filling.');
+    } else {
+      _hideSelection();
+    }
+  }
+
+  void _handleFrostingExit() {
+    if (_selectedFrosting == null) {
+      _showError('Please select a frosting flavor.');
+    } else {
+      _hideSelection();
+    }
   }
 
   List<Map<String, String>> _getOptionsForCake() {
@@ -120,7 +207,10 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         {
           'title': '2 TOPPINGS',
           'subtitle': 'OF YOUR CHOICE',
-          'clickable': 'true'
+          'clickable': 'true',
+          'type': 'toppings',
+          'count': '2',
+          'readonly': 'false'
         },
         {
           'title': 'DEDICATION',
@@ -152,8 +242,11 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         },
         {
           'title': '5 TOPPINGS',
-          'subtitle': 'OF YOUR CHOICE',
-          'clickable': 'true'
+          'subtitle': 'ALL SELECTED',
+          'clickable': 'true',
+          'type': 'toppings',
+          'count': '5',
+          'readonly': 'true'
         },
         {
           'title': 'DEDICATION',
@@ -186,7 +279,10 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         {
           'title': '3 TOPPINGS',
           'subtitle': 'OF YOUR CHOICE',
-          'clickable': 'true'
+          'clickable': 'true',
+          'type': 'toppings',
+          'count': '3',
+          'readonly': 'false'
         },
         {
           'title': 'DEDICATION',
@@ -216,7 +312,10 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       {
         'title': '2 TOPPINGS',
         'subtitle': 'OF YOUR CHOICE',
-        'clickable': 'true'
+        'clickable': 'true',
+        'type': 'toppings',
+        'count': '2',
+        'readonly': 'false'
       },
       {'title': 'DEDICATION', 'subtitle': 'PERSONALIZED', 'clickable': 'false'},
     ];
@@ -309,8 +408,15 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                                               fillingCount);
                                         } else if (type == 'frosting') {
                                           _showFrostingSelectionScreen();
+                                        } else if (type == 'toppings') {
+                                          final maxToppings = int.parse(
+                                              options[index]['count'] ?? '2');
+                                          final readOnly = options[index]
+                                                  ['readonly'] ==
+                                              'true';
+                                          _showToppingSelectionScreen(
+                                              maxToppings, readOnly);
                                         } else {
-                                          // TODO: Navigate to other selection screens
                                           debugPrint(
                                               'Tapped: ${options[index]['title']}');
                                         }
@@ -351,7 +457,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                     _selectedLayers[layerIndex] = flavor;
                   });
                 },
-                onBack: _hideSelection,
+                onBack: _handleLayerExit,
               ),
             ),
           // Filling selection overlay
@@ -366,7 +472,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                     _selectedFillings[fillingIndex] = flavor;
                   });
                 },
-                onBack: _hideSelection,
+                onBack: _handleFillingExit,
               ),
             ),
           // Frosting selection overlay
@@ -380,10 +486,325 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                     _selectedFrosting = flavor;
                   });
                 },
-                onBack: _hideSelection,
+                onBack: _handleFrostingExit,
               ),
             ),
+          // Topping selection overlay
+          if (_showToppingSelection)
+            SlideTransition(
+              position: _slideAnimation,
+              child: _ToppingSelectionOverlay(
+                maxToppings: _maxToppings,
+                selectedToppings: _selectedToppings,
+                readOnly: _toppingsReadOnly,
+                onToppingToggled: (topping) {
+                  if (_toppingsReadOnly) return;
+                  setState(() {
+                    if (_selectedToppings.contains(topping)) {
+                      _selectedToppings.remove(topping);
+                    } else {
+                      if (_selectedToppings.length < _maxToppings) {
+                        _selectedToppings.add(topping);
+                      }
+                    }
+                  });
+                },
+                onBack: _hideToppingSelectionWithPopup,
+              ),
+            ),
+          // Topping detail popup
+          if (_showToppingDetailPopup)
+            _ToppingDetailPopup(onDismiss: _hideDetailPopup),
+          // Error popup
+          if (_showErrorPopup)
+            _ErrorPopup(
+              message: _errorMessage,
+              onDismiss: _hideErrorPopup,
+            ),
         ],
+      ),
+    );
+  }
+}
+
+/// Generic error popup
+class _ErrorPopup extends StatefulWidget {
+  const _ErrorPopup({required this.message, required this.onDismiss});
+
+  final String message;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_ErrorPopup> createState() => _ErrorPopupState();
+}
+
+class _ErrorPopupState extends State<_ErrorPopup>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _dismiss() {
+    _controller.reverse().then((_) => widget.onDismiss());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _dismiss,
+      child: Container(
+        color: Colors.black.withOpacity(0.5),
+        child: Center(
+          child: GestureDetector(
+            onTap: () {}, // Prevent dismiss when tapping the popup itself
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: _fadeAnimation.value,
+                  child: Transform.scale(
+                    scale: _scaleAnimation.value,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 60),
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.pink500, AppColors.salmon400],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(80),
+                            blurRadius: 30,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Icon
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.error_outline,
+                              color: AppColors.pink700,
+                              size: 48,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          // Message
+                          Text(
+                            widget.message,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          // OK Button
+                          _MenuActionButton(
+                            onTap: _dismiss,
+                            gradient: const LinearGradient(
+                              colors: [Colors.white, Colors.white],
+                            ),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 32),
+                              child: Text(
+                                'OK',
+                                style: GoogleFonts.ubuntu(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.pink700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Topping detail popup that appears after selecting toppings
+class _ToppingDetailPopup extends StatefulWidget {
+  const _ToppingDetailPopup({required this.onDismiss});
+
+  final VoidCallback onDismiss;
+
+  @override
+  State<_ToppingDetailPopup> createState() => _ToppingDetailPopupState();
+}
+
+class _ToppingDetailPopupState extends State<_ToppingDetailPopup>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _dismiss() {
+    _controller.reverse().then((_) => widget.onDismiss());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _dismiss,
+      child: Container(
+        color: Colors.black.withOpacity(0.5),
+        child: Center(
+          child: GestureDetector(
+            onTap: () {}, // Prevent dismiss when tapping the popup itself
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: _fadeAnimation.value,
+                  child: Transform.scale(
+                    scale: _scaleAnimation.value,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 60),
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.pink500, AppColors.salmon400],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(80),
+                            blurRadius: 30,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Icon
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.info_outline,
+                              color: AppColors.pink700,
+                              size: 48,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          // Message
+                          Text(
+                            'Edit your chosen toppings on the customize screen - Add as many as you want!',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          // OK Button
+                          _MenuActionButton(
+                            onTap: _dismiss,
+                            gradient: const LinearGradient(
+                              colors: [Colors.white, Colors.white],
+                            ),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 32),
+                              child: Text(
+                                'Got it!',
+                                style: GoogleFonts.ubuntu(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.pink700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -786,6 +1207,284 @@ class _FrostingSelectionOverlay extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Topping selection overlay that slides in
+class _ToppingSelectionOverlay extends StatelessWidget {
+  const _ToppingSelectionOverlay({
+    required this.maxToppings,
+    required this.selectedToppings,
+    required this.readOnly,
+    required this.onToppingToggled,
+    required this.onBack,
+  });
+
+  final int maxToppings;
+  final List<String> selectedToppings;
+  final bool readOnly;
+  final Function(String topping) onToppingToggled;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    const toppings = [
+      'Pretzels',
+      'Cherries',
+      'Sprinkles',
+      'Mango',
+      'Chocolate'
+    ];
+
+    return Container(
+      color: AppColors.cream200,
+      child: Stack(
+        children: [
+          // Background icons
+          const Positioned.fill(
+            child: _TiledIcons(),
+          ),
+          // Content
+          SafeArea(
+            child: Center(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.all(42),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Header with back button
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                color: AppColors.pink700, size: 28),
+                            onPressed: onBack,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Select Toppings',
+                                  style: GoogleFonts.ubuntu(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w900,
+                                    fontStyle: FontStyle.italic,
+                                    color: AppColors.pink700,
+                                  ),
+                                ),
+                                if (!readOnly)
+                                  Text(
+                                    '${selectedToppings.length} of $maxToppings selected',
+                                    style: GoogleFonts.ubuntu(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.pink500,
+                                    ),
+                                  )
+                                else
+                                  Text(
+                                    'All toppings included',
+                                    style: GoogleFonts.ubuntu(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.pink500,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    // Topping selections
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.all(24),
+                        children: toppings.map((topping) {
+                          final isSelected = selectedToppings.contains(topping);
+                          final canSelect = !readOnly &&
+                              (isSelected ||
+                                  selectedToppings.length < maxToppings);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _ToppingOptionButton(
+                              topping: topping,
+                              isSelected: isSelected,
+                              enabled: canSelect,
+                              onTap: canSelect
+                                  ? () => onToppingToggled(topping)
+                                  : null,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    // Done button
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _MenuActionButton(
+                        onTap: onBack,
+                        gradient: const LinearGradient(
+                          colors: [AppColors.pink500, AppColors.salmon400],
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            'Done',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Topping option button (multiselect)
+class _ToppingOptionButton extends StatefulWidget {
+  const _ToppingOptionButton({
+    required this.topping,
+    required this.isSelected,
+    required this.enabled,
+    this.onTap,
+  });
+
+  final String topping;
+  final bool isSelected;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  State<_ToppingOptionButton> createState() => _ToppingOptionButtonState();
+}
+
+class _ToppingOptionButtonState extends State<_ToppingOptionButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor:
+          widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: widget.enabled ? (_) => setState(() => _isPressed = true) : null,
+      onExit: widget.enabled ? (_) => setState(() => _isPressed = false) : null,
+      child: GestureDetector(
+        onTapDown:
+            widget.enabled ? (_) => setState(() => _isPressed = true) : null,
+        onTapUp: widget.enabled
+            ? (_) {
+                Future.delayed(const Duration(milliseconds: 150), () {
+                  if (mounted) setState(() => _isPressed = false);
+                });
+                widget.onTap?.call();
+              }
+            : null,
+        onTapCancel:
+            widget.enabled ? () => setState(() => _isPressed = false) : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          decoration: BoxDecoration(
+            gradient: _isPressed
+                ? const LinearGradient(
+                    colors: [Colors.white, Colors.white],
+                  )
+                : widget.isSelected
+                    ? const LinearGradient(
+                        colors: [AppColors.pink500, AppColors.salmon400],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+            color: widget.isSelected || _isPressed
+                ? null
+                : widget.enabled
+                    ? AppColors.cream200
+                    : AppColors.cream200.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: widget.isSelected || _isPressed
+                  ? Colors.transparent
+                  : widget.enabled
+                      ? AppColors.pink700
+                      : AppColors.pink700,
+              width: 2,
+            ),
+            boxShadow: widget.isSelected || _isPressed
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(30),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            children: [
+              if (widget.isSelected)
+                Icon(
+                  Icons.check_circle,
+                  color: _isPressed ? AppColors.pink700 : Colors.white,
+                  size: 24,
+                )
+              else
+                Icon(
+                  Icons.circle_outlined,
+                  color: _isPressed
+                      ? AppColors.pink700
+                      : widget.enabled
+                          ? AppColors.pink700
+                          : AppColors.pink700,
+                  size: 24,
+                ),
+              const SizedBox(width: 12),
+              Text(
+                widget.topping,
+                style: GoogleFonts.ubuntu(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: _isPressed
+                      ? AppColors.pink700
+                      : widget.isSelected
+                          ? Colors.white
+                          : widget.enabled
+                              ? AppColors.pink700
+                              : AppColors.pink700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
