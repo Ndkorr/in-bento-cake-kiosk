@@ -7,7 +7,7 @@ import '../theme/app_colors.dart';
 import 'menu_screen.dart';
 import 'cake_customizer_screen.dart';
 
-class CakeDetailsScreen extends StatelessWidget {
+class CakeDetailsScreen extends StatefulWidget {
   const CakeDetailsScreen({
     super.key,
     required this.cake,
@@ -17,8 +17,88 @@ class CakeDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> cake;
   final int cakeIndex;
 
+  @override
+  State<CakeDetailsScreen> createState() => _CakeDetailsScreenState();
+}
+
+class _CakeDetailsScreenState extends State<CakeDetailsScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _slideController;
+  late Animation<Offset> _slideAnimation;
+  bool _showLayerSelection = false;
+  bool _showFillingSelection = false;
+  bool _showFrostingSelection = false;
+  int _numberOfLayers = 2;
+  int _numberOfFillings = 1;
+  List<String?> _selectedLayers = [];
+  List<String?> _selectedFillings = [];
+  String? _selectedFrosting;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(1, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutCubic,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _slideController.dispose();
+    super.dispose();
+  }
+
+  void _showLayerSelectionScreen(int layers) {
+    setState(() {
+      _numberOfLayers = layers;
+      _selectedLayers = List.filled(layers, null);
+      _showLayerSelection = true;
+      _showFillingSelection = false;
+      _showFrostingSelection = false;
+    });
+    _slideController.forward();
+  }
+
+  void _showFillingSelectionScreen(int fillings) {
+    setState(() {
+      _numberOfFillings = fillings;
+      _selectedFillings = List.filled(fillings, null);
+      _showFillingSelection = true;
+      _showLayerSelection = false;
+      _showFrostingSelection = false;
+    });
+    _slideController.forward();
+  }
+
+  void _showFrostingSelectionScreen() {
+    setState(() {
+      _showFrostingSelection = true;
+      _showLayerSelection = false;
+      _showFillingSelection = false;
+    });
+    _slideController.forward();
+  }
+
+  void _hideSelection() {
+    _slideController.reverse().then((_) {
+      setState(() {
+        _showLayerSelection = false;
+        _showFillingSelection = false;
+        _showFrostingSelection = false;
+      });
+    });
+  }
+
   List<Map<String, String>> _getOptionsForCake() {
-    final cakeName = cake['name'] as String;
+    final cakeName = widget.cake['name'] as String;
 
     if (cakeName == 'Classic Vanilla') {
       return [
@@ -53,17 +133,22 @@ class CakeDetailsScreen extends StatelessWidget {
         {
           'title': '3 LAYERS',
           'subtitle': 'OF YOUR CHOSEN VARIATION',
-          'clickable': 'true'
+          'clickable': 'true',
+          'type': 'layers',
+          'count': '3'
         },
         {
           'title': '2 FILLINGS',
           'subtitle': 'OF YOUR CHOICE',
-          'clickable': 'true'
+          'clickable': 'true',
+          'type': 'fillings',
+          'count': '2'
         },
         {
           'title': 'FROSTING',
           'subtitle': 'OF YOUR CHOICE',
-          'clickable': 'true'
+          'clickable': 'true',
+          'type': 'frosting'
         },
         {
           'title': '5 TOPPINGS',
@@ -81,17 +166,22 @@ class CakeDetailsScreen extends StatelessWidget {
         {
           'title': '2 LAYERS',
           'subtitle': 'OF YOUR CHOSEN VARIATION',
-          'clickable': 'true'
+          'clickable': 'true',
+          'type': 'layers',
+          'count': '2'
         },
         {
           'title': '1 FILLING',
           'subtitle': 'OF YOUR CHOICE',
-          'clickable': 'true'
+          'clickable': 'true',
+          'type': 'fillings',
+          'count': '1'
         },
         {
           'title': 'FROSTING',
           'subtitle': 'OF YOUR CHOICE',
-          'clickable': 'true'
+          'clickable': 'true',
+          'type': 'frosting'
         },
         {
           'title': '3 TOPPINGS',
@@ -171,9 +261,9 @@ class CakeDetailsScreen extends StatelessWidget {
                         SizedBox(
                           height: screenHeight * 0.4,
                           child: Hero(
-                            tag: 'cake_card_$cakeIndex',
+                            tag: 'cake_card_${widget.cakeIndex}',
                             child: CakeCard(
-                              cake: cake,
+                              cake: widget.cake,
                               isSelected: true,
                               isLandscape: false,
                               onTap: () {},
@@ -207,9 +297,23 @@ class CakeDetailsScreen extends StatelessWidget {
                                 isClickable: isClickable,
                                 onTap: isClickable
                                     ? () {
-                                        // TODO: Navigate to selection screen
-                                        debugPrint(
-                                            'Tapped: ${options[index]['title']}');
+                                        final type = options[index]['type'];
+                                        if (type == 'layers') {
+                                          final layerCount = int.parse(
+                                              options[index]['count'] ?? '2');
+                                          _showLayerSelectionScreen(layerCount);
+                                        } else if (type == 'fillings') {
+                                          final fillingCount = int.parse(
+                                              options[index]['count'] ?? '1');
+                                          _showFillingSelectionScreen(
+                                              fillingCount);
+                                        } else if (type == 'frosting') {
+                                          _showFrostingSelectionScreen();
+                                        } else {
+                                          // TODO: Navigate to other selection screens
+                                          debugPrint(
+                                              'Tapped: ${options[index]['title']}');
+                                        }
                                       }
                                     : null,
                               );
@@ -235,7 +339,621 @@ class CakeDetailsScreen extends StatelessWidget {
               ),
             ),
           ),
+          // Layer selection overlay
+          if (_showLayerSelection)
+            SlideTransition(
+              position: _slideAnimation,
+              child: _LayerSelectionOverlay(
+                numberOfLayers: _numberOfLayers,
+                selectedLayers: _selectedLayers,
+                onLayerSelected: (layerIndex, flavor) {
+                  setState(() {
+                    _selectedLayers[layerIndex] = flavor;
+                  });
+                },
+                onBack: _hideSelection,
+              ),
+            ),
+          // Filling selection overlay
+          if (_showFillingSelection)
+            SlideTransition(
+              position: _slideAnimation,
+              child: _FillingSelectionOverlay(
+                numberOfFillings: _numberOfFillings,
+                selectedFillings: _selectedFillings,
+                onFillingSelected: (fillingIndex, flavor) {
+                  setState(() {
+                    _selectedFillings[fillingIndex] = flavor;
+                  });
+                },
+                onBack: _hideSelection,
+              ),
+            ),
+          // Frosting selection overlay
+          if (_showFrostingSelection)
+            SlideTransition(
+              position: _slideAnimation,
+              child: _FrostingSelectionOverlay(
+                selectedFrosting: _selectedFrosting,
+                onFrostingSelected: (flavor) {
+                  setState(() {
+                    _selectedFrosting = flavor;
+                  });
+                },
+                onBack: _hideSelection,
+              ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+/// Layer selection overlay that slides in
+class _LayerSelectionOverlay extends StatelessWidget {
+  const _LayerSelectionOverlay({
+    required this.numberOfLayers,
+    required this.selectedLayers,
+    required this.onLayerSelected,
+    required this.onBack,
+  });
+
+  final int numberOfLayers;
+  final List<String?> selectedLayers;
+  final Function(int layerIndex, String flavor) onLayerSelected;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    const flavors = ['Vanilla', 'Chocolate', 'Ube'];
+
+    return Container(
+      color: AppColors.cream200,
+      child: Stack(
+        children: [
+          // Background icons
+          const Positioned.fill(
+            child: _TiledIcons(),
+          ),
+          // Content
+          SafeArea(
+            child: Center(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.all(42),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Header with back button
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                color: AppColors.pink700, size: 28),
+                            onPressed: onBack,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Select Layer Flavors',
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.pink700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    // Layer selections
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(24),
+                        itemCount: numberOfLayers,
+                        itemBuilder: (context, layerIndex) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(left: 8, bottom: 12),
+                                child: Text(
+                                  'Layer ${layerIndex + 1}',
+                                  style: GoogleFonts.ubuntu(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.pink700,
+                                  ),
+                                ),
+                              ),
+                              ...flavors.map((flavor) {
+                                final isSelected =
+                                    selectedLayers[layerIndex] == flavor;
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _FlavorOptionButton(
+                                    flavor: flavor,
+                                    isSelected: isSelected,
+                                    onTap: () =>
+                                        onLayerSelected(layerIndex, flavor),
+                                  ),
+                                );
+                              }),
+                              if (layerIndex < numberOfLayers - 1)
+                                const SizedBox(height: 16),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    // Done button
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _MenuActionButton(
+                        onTap: onBack,
+                        gradient: const LinearGradient(
+                          colors: [AppColors.pink500, AppColors.salmon400],
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            'Done',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Filling selection overlay that slides in
+class _FillingSelectionOverlay extends StatelessWidget {
+  const _FillingSelectionOverlay({
+    required this.numberOfFillings,
+    required this.selectedFillings,
+    required this.onFillingSelected,
+    required this.onBack,
+  });
+
+  final int numberOfFillings;
+  final List<String?> selectedFillings;
+  final Function(int fillingIndex, String flavor) onFillingSelected;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    const flavors = ['Vanilla', 'Chocolate', 'Ube'];
+
+    return Container(
+      color: AppColors.cream200,
+      child: Stack(
+        children: [
+          // Background icons
+          const Positioned.fill(
+            child: _TiledIcons(),
+          ),
+          // Content
+          SafeArea(
+            child: Center(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.all(42),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Header with back button
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                color: AppColors.pink700, size: 28),
+                            onPressed: onBack,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Select Filling Flavors',
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.pink700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    // Filling selections
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(24),
+                        itemCount: numberOfFillings,
+                        itemBuilder: (context, fillingIndex) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(left: 8, bottom: 12),
+                                child: Text(
+                                  numberOfFillings > 1
+                                      ? 'Filling ${fillingIndex + 1}'
+                                      : 'Filling',
+                                  style: GoogleFonts.ubuntu(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.pink700,
+                                  ),
+                                ),
+                              ),
+                              ...flavors.map((flavor) {
+                                final isSelected =
+                                    selectedFillings[fillingIndex] == flavor;
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _FlavorOptionButton(
+                                    flavor: flavor,
+                                    isSelected: isSelected,
+                                    onTap: () =>
+                                        onFillingSelected(fillingIndex, flavor),
+                                  ),
+                                );
+                              }),
+                              if (fillingIndex < numberOfFillings - 1)
+                                const SizedBox(height: 16),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    // Done button
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _MenuActionButton(
+                        onTap: onBack,
+                        gradient: const LinearGradient(
+                          colors: [AppColors.pink500, AppColors.salmon400],
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            'Done',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Frosting selection overlay that slides in
+class _FrostingSelectionOverlay extends StatelessWidget {
+  const _FrostingSelectionOverlay({
+    required this.selectedFrosting,
+    required this.onFrostingSelected,
+    required this.onBack,
+  });
+
+  final String? selectedFrosting;
+  final Function(String flavor) onFrostingSelected;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    const flavors = ['Vanilla', 'Chocolate', 'Ube'];
+
+    return Container(
+      color: AppColors.cream200,
+      child: Stack(
+        children: [
+          // Background icons
+          const Positioned.fill(
+            child: _TiledIcons(),
+          ),
+          // Content
+          SafeArea(
+            child: Center(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.all(42),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Header with back button
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                color: AppColors.pink700, size: 28),
+                            onPressed: onBack,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Select Frosting Flavor',
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.pink700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    // Frosting selections
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.all(24),
+                        children: flavors.map((flavor) {
+                          final isSelected = selectedFrosting == flavor;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _FlavorOptionButton(
+                              flavor: flavor,
+                              isSelected: isSelected,
+                              onTap: () => onFrostingSelected(flavor),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    // Done button
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _MenuActionButton(
+                        onTap: onBack,
+                        gradient: const LinearGradient(
+                          colors: [AppColors.pink500, AppColors.salmon400],
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            'Done',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Flavor option button
+class _FlavorOptionButton extends StatefulWidget {
+  const _FlavorOptionButton({
+    required this.flavor,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String flavor;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  State<_FlavorOptionButton> createState() => _FlavorOptionButtonState();
+}
+
+class _FlavorOptionButtonState extends State<_FlavorOptionButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isPressed = true),
+      onExit: (_) => setState(() => _isPressed = false),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (mounted) setState(() => _isPressed = false);
+          });
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          decoration: BoxDecoration(
+            gradient: _isPressed
+                ? const LinearGradient(
+                    colors: [Colors.white, Colors.white],
+                  )
+                : widget.isSelected
+                    ? const LinearGradient(
+                        colors: [AppColors.pink500, AppColors.salmon400],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+            color: widget.isSelected || _isPressed ? null : AppColors.cream200,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: widget.isSelected || _isPressed
+                  ? Colors.transparent
+                  : AppColors.pink700,
+              width: 2,
+            ),
+            boxShadow: widget.isSelected || _isPressed
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(30),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            children: [
+              if (widget.isSelected)
+                Icon(
+                  Icons.check_circle,
+                  color: _isPressed ? AppColors.pink700 : Colors.white,
+                  size: 24,
+                )
+              else
+                Icon(
+                  Icons.circle_outlined,
+                  color: _isPressed ? AppColors.pink700 : AppColors.pink700,
+                  size: 24,
+                ),
+              const SizedBox(width: 12),
+              Text(
+                widget.flavor,
+                style: GoogleFonts.ubuntu(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: _isPressed
+                      ? AppColors.pink700
+                      : widget.isSelected
+                          ? Colors.white
+                          : AppColors.pink700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A styled button (reused from menu_screen)
+class _MenuActionButton extends StatefulWidget {
+  const _MenuActionButton({
+    required this.onTap,
+    required this.gradient,
+    required this.child,
+  });
+
+  final VoidCallback onTap;
+  final Gradient gradient;
+  final Widget child;
+
+  @override
+  State<_MenuActionButton> createState() => _MenuActionButtonState();
+}
+
+class _MenuActionButtonState extends State<_MenuActionButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isPressed = true),
+      onExit: (_) => setState(() => _isPressed = false),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (mounted) setState(() => _isPressed = false);
+          });
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            gradient: _isPressed
+                ? const LinearGradient(
+                    colors: [Colors.white, Colors.white],
+                  )
+                : widget.gradient,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(40),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 150),
+            style: GoogleFonts.ubuntu(
+              color: _isPressed ? AppColors.pink700 : Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+            child: widget.child,
+          ),
+        ),
       ),
     );
   }
@@ -259,15 +977,43 @@ class _OptionButton extends StatefulWidget {
 }
 
 class _OptionButtonState extends State<_OptionButton> {
+  bool _isPressed = false;
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: widget.isClickable
-          ? _CirculatingBorderWrapper(
-              child: _buildContent(),
-            )
-          : _buildContent(),
+    return MouseRegion(
+      cursor: widget.isClickable
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
+      onEnter:
+          widget.isClickable ? (_) => setState(() => _isPressed = true) : null,
+      onExit:
+          widget.isClickable ? (_) => setState(() => _isPressed = false) : null,
+      child: GestureDetector(
+        onTapDown: widget.isClickable
+            ? (_) => setState(() => _isPressed = true)
+            : null,
+        onTapUp: widget.isClickable
+            ? (_) {
+                Future.delayed(const Duration(milliseconds: 150), () {
+                  if (mounted) setState(() => _isPressed = false);
+                });
+                widget.onTap?.call();
+              }
+            : null,
+        onTapCancel: widget.isClickable
+            ? () => setState(() => _isPressed = false)
+            : null,
+        onTap: widget.isClickable ? null : widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          child: widget.isClickable
+              ? _CirculatingBorderWrapper(
+                  child: _buildContent(),
+                )
+              : _buildContent(),
+        ),
+      ),
     );
   }
 
@@ -275,14 +1021,18 @@ class _OptionButtonState extends State<_OptionButton> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            AppColors.pink500,
-            AppColors.salmon400,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: _isPressed
+            ? const LinearGradient(
+                colors: [Colors.white, Colors.white],
+              )
+            : const LinearGradient(
+                colors: [
+                  AppColors.pink500,
+                  AppColors.salmon400,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -296,7 +1046,11 @@ class _OptionButtonState extends State<_OptionButton> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const SizedBox(width: 12),
-          const _PulsatingIcon(icon: Icons.auto_awesome, size: 22),
+          _PulsatingIcon(
+            icon: Icons.auto_awesome,
+            size: 22,
+            isPressed: _isPressed,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -306,7 +1060,7 @@ class _OptionButtonState extends State<_OptionButton> {
                 Text(
                   widget.title,
                   style: GoogleFonts.ubuntu(
-                    color: Colors.white,
+                    color: _isPressed ? AppColors.pink700 : Colors.white,
                     fontWeight: FontWeight.w900,
                     fontSize: 18,
                   ),
@@ -314,7 +1068,7 @@ class _OptionButtonState extends State<_OptionButton> {
                 Text(
                   widget.subtitle,
                   style: GoogleFonts.ubuntu(
-                    color: AppColors.cream200,
+                    color: _isPressed ? AppColors.pink500 : AppColors.cream200,
                     fontWeight: FontWeight.w700,
                     fontSize: 12,
                   ),
@@ -325,7 +1079,7 @@ class _OptionButtonState extends State<_OptionButton> {
           // Show pulsating chevron icon if clickable
           if (widget.isClickable) ...[
             const SizedBox(width: 8),
-            const _PulsatingChevron(),
+            _PulsatingChevron(isPressed: _isPressed),
           ],
           const SizedBox(width: 12),
         ],
@@ -336,7 +1090,9 @@ class _OptionButtonState extends State<_OptionButton> {
 
 /// Pulsating chevron icon
 class _PulsatingChevron extends StatefulWidget {
-  const _PulsatingChevron();
+  const _PulsatingChevron({this.isPressed = false});
+
+  final bool isPressed;
 
   @override
   State<_PulsatingChevron> createState() => _PulsatingChevronState();
@@ -373,9 +1129,9 @@ class _PulsatingChevronState extends State<_PulsatingChevron>
       builder: (context, child) {
         return Transform.scale(
           scale: _scaleAnimation.value,
-          child: const Icon(
+          child: Icon(
             Icons.chevron_right_rounded,
-            color: Colors.white,
+            color: widget.isPressed ? AppColors.pink700 : Colors.white,
             size: 28,
           ),
         );
@@ -461,7 +1217,7 @@ class _CirculatingBorderPainter extends CustomPainter {
       // Offset each light segment
       final offset = i * 0.5;
       final segmentStart = ((progress + offset) % 1.0);
-      final segmentLength = 0.2; // Length of each light segment
+      const segmentLength = 0.2; // Length of each light segment
 
       // Calculate positions
       final startDistance = segmentStart * totalLength;
@@ -557,10 +1313,15 @@ class _CirculatingBorderPainter extends CustomPainter {
 }
 
 class _PulsatingIcon extends StatefulWidget {
-  const _PulsatingIcon({required this.icon, this.size = 20});
+  const _PulsatingIcon({
+    required this.icon,
+    this.size = 20,
+    this.isPressed = false,
+  });
 
   final IconData icon;
   final double size;
+  final bool isPressed;
 
   @override
   State<_PulsatingIcon> createState() => _PulsatingIconState();
@@ -604,22 +1365,28 @@ class _PulsatingIconState extends State<_PulsatingIcon>
           alignment: Alignment.center,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.salmon400.withOpacity(_glow.value),
-                blurRadius: 14,
-                spreadRadius: 1,
-              ),
-            ],
-            gradient: const LinearGradient(
-              colors: [AppColors.pink500, AppColors.salmon400],
-            ),
+            boxShadow: widget.isPressed
+                ? []
+                : [
+                    BoxShadow(
+                      color: AppColors.salmon400.withOpacity(_glow.value),
+                      blurRadius: 14,
+                      spreadRadius: 1,
+                    ),
+                  ],
+            gradient: widget.isPressed
+                ? const LinearGradient(
+                    colors: [Colors.white, Colors.white],
+                  )
+                : const LinearGradient(
+                    colors: [AppColors.pink500, AppColors.salmon400],
+                  ),
           ),
           child: Transform.scale(
             scale: _scale.value,
             child: Icon(
               widget.icon,
-              color: Colors.white,
+              color: widget.isPressed ? AppColors.pink700 : Colors.white,
               size: widget.size,
             ),
           ),
