@@ -452,9 +452,16 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        const CakeCustomizerScreen(
+                                    builder: (context) => CakeCustomizerScreen(
                                       cakeShape: 'round',
+                                      selectedLayers: _selectedLayers.isEmpty
+                                          ? null
+                                          : _selectedLayers,
+                                      selectedFillings:
+                                          _selectedFillings.isEmpty
+                                              ? null
+                                              : _selectedFillings,
+                                      selectedFrosting: _selectedFrosting,
                                     ),
                                   ),
                                 );
