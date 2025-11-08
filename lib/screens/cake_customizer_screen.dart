@@ -4,6 +4,12 @@ import 'package:model_viewer_plus/model_viewer_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 
+enum CakeViewMode {
+  fullView,
+  separateView,
+  stackedView,
+}
+
 class CakeCustomizerScreen extends StatefulWidget {
   final String cakeShape;
   final List<String?>? selectedLayers;
@@ -23,11 +29,13 @@ class CakeCustomizerScreen extends StatefulWidget {
 }
 
 class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
-  // Map flavor names to colors (hex format for model-viewer)
-  final Map<String, String> _flavorColors = {
-    'Vanilla': '#F5E6D3', // Cream/beige color
-    'Chocolate': '#3D2817', // Dark brown
-    'Ube': '#7B68A6', // Purple
+  CakeViewMode _currentView = CakeViewMode.fullView;
+
+  // Map flavor names to abbreviations
+  final Map<String, String> _flavorAbbreviations = {
+    'Vanilla': 'V',
+    'Chocolate': 'C',
+    'Ube': 'U',
   };
 
   String _getAssetPath(String fileName) {
@@ -36,34 +44,50 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
         : 'assets/cake_layers/$fileName';
   }
 
-  String _getModelPath() {
-    // Load the base layer model
-    final basePath =
-        widget.cakeShape == 'round' ? 'round_base.glb' : 'square_base.glb';
-    return _getAssetPath(basePath);
-  }
-
-  String _buildMaterialScript() {
-    final scripts = <String>[];
-
-    // Set colors for layers in round_base.glb
-    if (widget.selectedLayers != null) {
-      for (int i = 0; i < widget.selectedLayers!.length; i++) {
-        final flavor = widget.selectedLayers![i];
-        if (flavor != null && _flavorColors.containsKey(flavor)) {
-          final materialName = 'layer${i + 1}';
-          final color = _flavorColors[flavor];
-          scripts.add('''
-            const material_$materialName = viewer.model.materials.find(m => m.name === '$materialName');
-            if (material_$materialName) {
-              material_$materialName.pbrMetallicRoughness.setBaseColorFactor('$color');
-            }
-          ''');
-        }
-      }
+  String _buildModelFileName() {
+    if (widget.selectedLayers == null ||
+        widget.selectedLayers!.isEmpty ||
+        widget.selectedFillings == null ||
+        widget.selectedFillings!.isEmpty) {
+      return 'VVV.glb'; // Default
     }
 
-    return scripts.join('\n');
+    final parts = <String>[];
+
+    // First layer
+    final layer1 = widget.selectedLayers![0];
+    parts.add(_flavorAbbreviations[layer1] ?? 'V');
+
+    // Filling
+    final filling = widget.selectedFillings![0];
+    parts.add(_flavorAbbreviations[filling] ?? 'V');
+
+    // Second layer (if 2 layers) or more
+    if (widget.selectedLayers!.length >= 2) {
+      final layer2 = widget.selectedLayers![1];
+      parts.add(_flavorAbbreviations[layer2] ?? 'V');
+    } else {
+      parts.add('V'); // Default
+    }
+
+    return '${parts.join('')}.glb';
+  }
+
+  String _getModelPath() {
+    final fileName = _buildModelFileName();
+    final numLayers = widget.selectedLayers?.length ?? 2;
+    final shape = widget.cakeShape == 'round' ? 'roundshaped' : 'heartshaped';
+
+    switch (_currentView) {
+      case CakeViewMode.fullView:
+        return _getAssetPath('full_view/$shape/${numLayers}layers/$fileName');
+      case CakeViewMode.separateView:
+        return _getAssetPath(
+            'layer_view/$shape/${numLayers}layers/seperate/$fileName');
+      case CakeViewMode.stackedView:
+        return _getAssetPath(
+            'layer_view/$shape/${numLayers}layers/stacked/$fileName');
+    }
   }
 
   String _buildSummaryText() {
@@ -98,31 +122,21 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
     return summary.toString().trim();
   }
 
+  String _getViewModeLabel() {
+    switch (_currentView) {
+      case CakeViewMode.fullView:
+        return 'Full View';
+      case CakeViewMode.separateView:
+        return 'Separate Layers';
+      case CakeViewMode.stackedView:
+        return 'Stacked Layers';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final modelPath = _getModelPath();
     final summaryText = _buildSummaryText();
-    final materialScript = _buildMaterialScript();
-
-    // Determine the number of layers to show correct frosting model
-    final numLayers = widget.selectedLayers?.length ?? 2;
-    final frostingModel = widget.cakeShape == 'round'
-        ? 'round_frosting_${numLayers}layer.glb'
-        : 'square_frosting_${numLayers}layer.glb';
-    final fillingModel = widget.cakeShape == 'round'
-        ? 'round_filling.glb'
-        : 'square_filling.glb';
-
-    // Get colors for filling and frosting
-    final fillingColor = widget.selectedFillings != null &&
-            widget.selectedFillings!.isNotEmpty &&
-            widget.selectedFillings![0] != null
-        ? _flavorColors[widget.selectedFillings![0]]
-        : null;
-
-    final frostingColor = widget.selectedFrosting != null
-        ? _flavorColors[widget.selectedFrosting]
-        : null;
 
     return Scaffold(
       backgroundColor: AppColors.cream200,
@@ -140,11 +154,57 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
       ),
       body: Column(
         children: [
+          // View mode selector
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _ViewModeButton(
+                    label: 'Full View',
+                    icon: Icons.cake,
+                    isSelected: _currentView == CakeViewMode.fullView,
+                    onTap: () {
+                      setState(() {
+                        _currentView = CakeViewMode.fullView;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ViewModeButton(
+                    label: 'Separate',
+                    icon: Icons.layers_outlined,
+                    isSelected: _currentView == CakeViewMode.separateView,
+                    onTap: () {
+                      setState(() {
+                        _currentView = CakeViewMode.separateView;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ViewModeButton(
+                    label: 'Stacked',
+                    icon: Icons.layers,
+                    isSelected: _currentView == CakeViewMode.stackedView,
+                    onTap: () {
+                      setState(() {
+                        _currentView = CakeViewMode.stackedView;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
           // 3D Model Viewer
           Expanded(
             flex: 3,
             child: Container(
-              margin: const EdgeInsets.all(16),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(24),
@@ -158,75 +218,22 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24),
-                child: Stack(
-                  children: [
-                    // Base layers
-                    ModelViewer(
-                      backgroundColor: const Color(0xFFFFFFFF),
-                      src: modelPath,
-                      alt: 'A 3D model of cake layers',
-                      ar: true,
-                      autoRotate: true,
-                      cameraControls: true,
-                      loading: Loading.eager,
-                      relatedCss: '''
-                        model-viewer {
-                          width: 100%;
-                          height: 100%;
-                        }
-                      ''',
-                      relatedJs: materialScript.isNotEmpty
-                          ? '''
-                            const viewer = document.querySelector('model-viewer');
-                            viewer.addEventListener('load', () => {
-                              $materialScript
-                            });
-                          '''
-                          : null,
-                    ),
-                    // Filling layer (if selected)
-                    if (fillingColor != null)
-                      Positioned.fill(
-                        child: ModelViewer(
-                          backgroundColor: Colors.transparent,
-                          src: _getAssetPath(fillingModel),
-                          alt: 'Cake filling',
-                          autoRotate: true,
-                          cameraControls: true,
-                          loading: Loading.eager,
-                          relatedJs: '''
-                            const viewer = document.querySelector('model-viewer');
-                            viewer.addEventListener('load', () => {
-                              const material = viewer.model.materials[0];
-                              if (material) {
-                                material.pbrMetallicRoughness.setBaseColorFactor('$fillingColor');
-                              }
-                            });
-                          ''',
-                        ),
-                      ),
-                    // Frosting layer (if selected)
-                    if (frostingColor != null)
-                      Positioned.fill(
-                        child: ModelViewer(
-                          backgroundColor: Colors.transparent,
-                          src: _getAssetPath(frostingModel),
-                          alt: 'Cake frosting',
-                          autoRotate: true,
-                          cameraControls: true,
-                          loading: Loading.eager,
-                          relatedJs: '''
-                            const viewer = document.querySelector('model-viewer');
-                            viewer.addEventListener('load', () => {
-                              const material = viewer.model.materials[0];
-                              if (material) {
-                                material.pbrMetallicRoughness.setBaseColorFactor('$frostingColor');
-                              }
-                            });
-                          ''',
-                        ),
-                      ),
-                  ],
+                child: ModelViewer(
+                  key: ValueKey(modelPath), // Force rebuild when path changes
+                  backgroundColor: const Color(0xFFFFFFFF),
+                  src: modelPath,
+                  alt:
+                      'A 3D model of a customized cake - ${_getViewModeLabel()}',
+                  ar: true,
+                  autoRotate: true,
+                  cameraControls: true,
+                  loading: Loading.eager,
+                  relatedCss: '''
+                    model-viewer {
+                      width: 100%;
+                      height: 100%;
+                    }
+                  ''',
                 ),
               ),
             ),
@@ -277,6 +284,75 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// View mode button widget
+class _ViewModeButton extends StatelessWidget {
+  const _ViewModeButton({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? const LinearGradient(
+                  colors: [AppColors.pink500, AppColors.salmon400],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isSelected ? null : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : AppColors.pink700,
+            width: 2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : AppColors.pink700,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.ubuntu(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? Colors.white : AppColors.pink700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
