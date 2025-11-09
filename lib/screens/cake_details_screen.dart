@@ -29,6 +29,8 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   bool _showFillingSelection = false;
   bool _showFrostingSelection = false;
   bool _showToppingSelection = false;
+  bool _showShapeSelection = false;
+  bool _showFlavorSelection = false; 
   bool _showToppingDetailPopup = false;
   bool _showErrorPopup = false;
   String _errorMessage = '';
@@ -38,6 +40,8 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   List<String?> _selectedLayers = [];
   List<String?> _selectedFillings = [];
   String? _selectedFrosting;
+  String? _selectedShape;
+  String? _selectedFlavor; 
   List<String> _selectedToppings = [];
   bool _toppingsReadOnly = false;
 
@@ -74,11 +78,105 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       _selectedLayers = [];
       _selectedFillings = [];
       _selectedFrosting = null;
+      _selectedShape = null;
+      _selectedFlavor = null; // NEW
       _selectedToppings = [];
       _layersCompleted = false;
       _fillingsCompleted = false;
       _frostingCompleted = false;
       _toppingsCompleted = false;
+    });
+  }
+
+  void _showFlavorSelectionScreen() {
+    setState(() {
+      _showFlavorSelection = true;
+      _showLayerSelection = false;
+      _showFillingSelection = false;
+      _showFrostingSelection = false;
+      _showToppingSelection = false;
+      _showShapeSelection = false;
+    });
+    _slideController.forward();
+  }
+
+  void _handleFlavorSelection(String flavor) {
+    setState(() {
+      _selectedFlavor = flavor;
+    });
+  }
+
+  void _handleFlavorExit() {
+    if (_selectedFlavor == null) {
+      _showError('Please select a flavor for your cake.');
+    } else {
+      // Apply the selected flavor to all components
+      setState(() {
+        _selectedLayers = [_selectedFlavor, _selectedFlavor];
+        _selectedFillings = [_selectedFlavor];
+        _selectedFrosting = _selectedFlavor;
+        _layersCompleted = true;
+        _fillingsCompleted = true;
+        _frostingCompleted = true;
+      });
+      _hideFlavorSelection();
+      // Show shape selection next
+      _showShapeSelectionScreen();
+    }
+  }
+
+  void _hideFlavorSelection() {
+    _slideController.reverse().then((_) {
+      setState(() {
+        _showFlavorSelection = false;
+      });
+    });
+  }
+
+  void _showShapeSelectionScreen() {
+    setState(() {
+      _showShapeSelection = true;
+      _showLayerSelection = false;
+      _showFillingSelection = false;
+      _showFrostingSelection = false;
+      _showToppingSelection = false;
+      _showFlavorSelection = false;
+    });
+    _slideController.forward();
+  }
+
+  void _handleShapeSelection(String shape) {
+    setState(() {
+      _selectedShape = shape;
+    });
+  }
+
+  void _handleShapeExit() {
+    if (_selectedShape == null) {
+      _showError('Please select a cake shape.');
+    } else {
+      _hideShapeSelection();
+      // Navigate to customizer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CakeCustomizerScreen(
+            cakeShape: _selectedShape!.toLowerCase(),
+            selectedLayers: _selectedLayers.isEmpty ? null : _selectedLayers,
+            selectedFillings:
+                _selectedFillings.isEmpty ? null : _selectedFillings,
+            selectedFrosting: _selectedFrosting,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _hideShapeSelection() {
+    _slideController.reverse().then((_) {
+      setState(() {
+        _showShapeSelection = false;
+      });
     });
   }
 
@@ -92,6 +190,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       _showFillingSelection = false;
       _showFrostingSelection = false;
       _showToppingSelection = false;
+      _showShapeSelection = false;
     });
     _slideController.forward();
   }
@@ -106,6 +205,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       _showLayerSelection = false;
       _showFrostingSelection = false;
       _showToppingSelection = false;
+      _showShapeSelection = false;
     });
     _slideController.forward();
   }
@@ -116,6 +216,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       _showLayerSelection = false;
       _showFillingSelection = false;
       _showToppingSelection = false;
+      _showShapeSelection = false;
     });
     _slideController.forward();
   }
@@ -126,7 +227,6 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       _toppingsReadOnly = readOnly;
       if (_selectedToppings.isEmpty) {
         if (readOnly) {
-          // For Chocolate Dream, select all toppings by default
           _selectedToppings = [
             'Pretzels',
             'Cherries',
@@ -140,6 +240,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       _showLayerSelection = false;
       _showFillingSelection = false;
       _showFrostingSelection = false;
+      _showShapeSelection = false;
     });
     _slideController.forward();
   }
@@ -151,12 +252,13 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         _showFillingSelection = false;
         _showFrostingSelection = false;
         _showToppingSelection = false;
+        _showShapeSelection = false;
+        _showFlavorSelection = false;
       });
     });
   }
 
   void _hideToppingSelectionWithValidation() {
-    // For read-only toppings (Chocolate Dream), skip validation
     if (_toppingsReadOnly) {
       _slideController.reverse().then((_) {
         setState(() {
@@ -168,7 +270,6 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       return;
     }
 
-    // For editable toppings, validate selection
     if (_selectedToppings.isEmpty) {
       _showError('Please select at least one topping.');
     } else {
@@ -263,17 +364,23 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       return [
         {
           'title': '2 LAYERS',
-          'subtitle': 'SAME FLAVOR FOR BOTH LAYERS',
+          'subtitle': _layersCompleted
+              ? _selectedFlavor ?? 'SAME FLAVOR FOR BOTH LAYERS'
+              : 'SAME FLAVOR FOR BOTH LAYERS',
           'clickable': 'false'
         },
         {
           'title': '1 FILLING',
-          'subtitle': 'SAME FLAVOR AS CAKE LAYER',
+          'subtitle': _fillingsCompleted
+              ? _selectedFlavor ?? 'SAME FLAVOR AS CAKE LAYER'
+              : 'SAME FLAVOR AS CAKE LAYER',
           'clickable': 'false'
         },
         {
           'title': 'FROSTING',
-          'subtitle': 'SAME FLAVOR AS CAKE LAYER',
+          'subtitle': _frostingCompleted
+              ? _selectedFlavor ?? 'SAME FLAVOR AS CAKE LAYER'
+              : 'SAME FLAVOR AS CAKE LAYER',
           'clickable': 'false'
         },
         {
@@ -373,7 +480,6 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       ];
     }
 
-    // Default fallback
     return [
       {
         'title': '2 LAYERS',
@@ -412,11 +518,9 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       backgroundColor: AppColors.cream200,
       body: Stack(
         children: [
-          // Pulsating background icons
           const Positioned.fill(
             child: _TiledIcons(),
           ),
-          // Main content
           SafeArea(
             child: Center(
               child: Container(
@@ -438,7 +542,6 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // The card that grows
                         SizedBox(
                           height: screenHeight * 0.4,
                           child: Hero(
@@ -449,29 +552,19 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                               isLandscape: false,
                               onTap: () {},
                               onViewTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => CakeCustomizerScreen(
-                                      cakeShape: 'round',
-                                      selectedLayers: _selectedLayers.isEmpty
-                                          ? null
-                                          : _selectedLayers,
-                                      selectedFillings:
-                                          _selectedFillings.isEmpty
-                                              ? null
-                                              : _selectedFillings,
-                                      selectedFrosting: _selectedFrosting,
-                                    ),
-                                  ),
-                                );
+                                // Check if it's Classic Vanilla
+                                final cakeName = widget.cake['name'] as String;
+                                if (cakeName == 'Classic Vanilla') {
+                                  _showFlavorSelectionScreen();
+                                } else {
+                                  _showShapeSelectionScreen();
+                                }
                               },
                               viewButtonText: 'Customize',
                             ),
                           ),
                         ),
                         const SizedBox(height: 24),
-                        // Customization options
                         Expanded(
                           child: ListView.separated(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -508,9 +601,6 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                                               'true';
                                           _showToppingSelectionScreen(
                                               maxToppings, readOnly);
-                                        } else {
-                                          debugPrint(
-                                              'Tapped: ${options[index]['title']}');
                                         }
                                       }
                                     : null,
@@ -540,7 +630,27 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
               ),
             ),
           ),
-          // Layer selection overlay
+          // Flavor selection overlay (NEW - for Classic Vanilla)
+          if (_showFlavorSelection)
+            SlideTransition(
+              position: _slideAnimation,
+              child: _FlavorSelectionOverlay(
+                selectedFlavor: _selectedFlavor,
+                onFlavorSelected: _handleFlavorSelection,
+                onBack: _handleFlavorExit,
+              ),
+            ),
+          // Shape selection overlay
+          if (_showShapeSelection)
+            SlideTransition(
+              position: _slideAnimation,
+              child: _ShapeSelectionOverlay(
+                selectedShape: _selectedShape,
+                onShapeSelected: _handleShapeSelection,
+                onBack: _handleShapeExit,
+              ),
+            ),
+          // ...existing overlays...
           if (_showLayerSelection)
             SlideTransition(
               position: _slideAnimation,
@@ -555,7 +665,6 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                 onBack: _handleLayerExit,
               ),
             ),
-          // Filling selection overlay
           if (_showFillingSelection)
             SlideTransition(
               position: _slideAnimation,
@@ -570,7 +679,6 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                 onBack: _handleFillingExit,
               ),
             ),
-          // Frosting selection overlay
           if (_showFrostingSelection)
             SlideTransition(
               position: _slideAnimation,
@@ -584,7 +692,6 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                 onBack: _handleFrostingExit,
               ),
             ),
-          // Topping selection overlay
           if (_showToppingSelection)
             SlideTransition(
               position: _slideAnimation,
@@ -607,16 +714,367 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                 onBack: _hideToppingSelectionWithValidation,
               ),
             ),
-          // Topping detail popup
           if (_showToppingDetailPopup)
             _ToppingDetailPopup(onDismiss: _hideDetailPopup),
-          // Error popup
           if (_showErrorPopup)
             _ErrorPopup(
               message: _errorMessage,
               onDismiss: _hideErrorPopup,
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Flavor selection overlay (for Classic Vanilla)
+class _FlavorSelectionOverlay extends StatelessWidget {
+  const _FlavorSelectionOverlay({
+    required this.selectedFlavor,
+    required this.onFlavorSelected,
+    required this.onBack,
+  });
+
+  final String? selectedFlavor;
+  final Function(String flavor) onFlavorSelected;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    const flavors = ['Vanilla', 'Chocolate', 'Ube'];
+
+    return Container(
+      color: AppColors.cream200,
+      child: Stack(
+        children: [
+          const Positioned.fill(
+            child: _TiledIcons(),
+          ),
+          SafeArea(
+            child: Center(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.all(42),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                color: AppColors.pink700, size: 28),
+                            onPressed: onBack,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Select Cake Flavor',
+                                  style: GoogleFonts.ubuntu(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w900,
+                                    fontStyle: FontStyle.italic,
+                                    color: AppColors.pink700,
+                                  ),
+                                ),
+                                Text(
+                                  'Same flavor for layers, filling & frosting',
+                                  style: GoogleFonts.ubuntu(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.pink500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: flavors.map((flavor) {
+                            final isSelected = selectedFlavor == flavor;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _FlavorOptionButton(
+                                flavor: flavor,
+                                isSelected: isSelected,
+                                onTap: () => onFlavorSelected(flavor),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _MenuActionButton(
+                        onTap: onBack,
+                        gradient: const LinearGradient(
+                          colors: [AppColors.pink500, AppColors.salmon400],
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            'Continue',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shape selection overlay
+class _ShapeSelectionOverlay extends StatelessWidget {
+  const _ShapeSelectionOverlay({
+    required this.selectedShape,
+    required this.onShapeSelected,
+    required this.onBack,
+  });
+
+  final String? selectedShape;
+  final Function(String shape) onShapeSelected;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.cream200,
+      child: Stack(
+        children: [
+          const Positioned.fill(
+            child: _TiledIcons(),
+          ),
+          SafeArea(
+            child: Center(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.all(42),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                color: AppColors.pink700, size: 28),
+                            onPressed: onBack,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Select Cake Shape',
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.pink700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _ShapeOptionButton(
+                              shape: 'Round',
+                              icon: Icons.circle_outlined,
+                              isSelected: selectedShape == 'Round',
+                              onTap: () => onShapeSelected('Round'),
+                            ),
+                            const SizedBox(height: 16),
+                            _ShapeOptionButton(
+                              shape: 'Heart',
+                              icon: Icons.favorite_border,
+                              isSelected: selectedShape == 'Heart',
+                              onTap: () => onShapeSelected('Heart'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _MenuActionButton(
+                        onTap: onBack,
+                        gradient: const LinearGradient(
+                          colors: [AppColors.pink500, AppColors.salmon400],
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            'Continue',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shape option button
+class _ShapeOptionButton extends StatefulWidget {
+  const _ShapeOptionButton({
+    required this.shape,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String shape;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  State<_ShapeOptionButton> createState() => _ShapeOptionButtonState();
+}
+
+class _ShapeOptionButtonState extends State<_ShapeOptionButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isPressed = true),
+      onExit: (_) => setState(() => _isPressed = false),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (mounted) setState(() => _isPressed = false);
+          });
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+          decoration: BoxDecoration(
+            gradient: _isPressed
+                ? const LinearGradient(
+                    colors: [Colors.white, Colors.white],
+                  )
+                : widget.isSelected
+                    ? const LinearGradient(
+                        colors: [AppColors.pink500, AppColors.salmon400],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+            color: widget.isSelected || _isPressed ? null : AppColors.cream200,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: widget.isSelected || _isPressed
+                  ? Colors.transparent
+                  : AppColors.pink700,
+              width: 2,
+            ),
+            boxShadow: widget.isSelected || _isPressed
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(30),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                widget.icon,
+                color: _isPressed
+                    ? AppColors.pink700
+                    : widget.isSelected
+                        ? Colors.white
+                        : AppColors.pink700,
+                size: 32,
+              ),
+              const SizedBox(width: 16),
+              Text(
+                widget.shape,
+                style: GoogleFonts.ubuntu(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: _isPressed
+                      ? AppColors.pink700
+                      : widget.isSelected
+                          ? Colors.white
+                          : AppColors.pink700,
+                ),
+              ),
+              const Spacer(),
+              if (widget.isSelected)
+                Icon(
+                  Icons.check_circle,
+                  color: _isPressed ? AppColors.pink700 : Colors.white,
+                  size: 28,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
