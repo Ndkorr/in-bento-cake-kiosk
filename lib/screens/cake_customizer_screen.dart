@@ -40,15 +40,10 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   };
 
   String _getAssetPath(String fileName) {
-    // For web, we construct the full, absolute URL.
-    if (kIsWeb) {
-      const String siteBase =
-          'https://ndkorr.github.io/in-bento-cake-kiosk/assets/cake_layers/';
-      return siteBase + fileName;
-    } else {
-      // For other platforms, the standard asset path is sufficient.
-      return 'assets/cake_layers/$fileName';
-    }
+    // Revert to the standard Flutter asset path.
+    // The 'assets/' prefix is automatically handled by the build process
+    // for web, which correctly resolves the path relative to the base href.
+    return 'assets/cake_layers/$fileName';
   }
   
 
