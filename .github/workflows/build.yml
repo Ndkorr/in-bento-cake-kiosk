@@ -16,6 +16,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set project directory env
+        run: echo "PROJECT_DIR=in_bento_kiosk" >> $GITHUB_ENV
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -23,45 +26,47 @@ jobs:
           flutter-version: '3.24.3'
 
       - name: Get Flutter dependencies
+        working-directory: in_bento_kiosk
         run: flutter pub get
 
       - name: Verify GLB files exist
         run: |
           echo "Checking for GLB files..."
-          find assets/cake_layers -name "*.glb" -type f
+          find $PROJECT_DIR/assets/cake_layers -name "*.glb" -type f
           echo "Total GLB files found:"
-          find assets/cake_layers -name "*.glb" -type f | wc -l
+          find $PROJECT_DIR/assets/cake_layers -name "*.glb" -type f | wc -l
 
       - name: Build Web (CanvasKit, no PWA caching)
+        working-directory: in_bento_kiosk
         run: flutter build web --release --base-href /in-bento-cake-kiosk/ --web-renderer canvaskit --pwa-strategy=none
 
       - name: Verify assets in build output
         run: |
           echo "Checking if GLB files are in build output..."
-          if [ ! -d build/web/assets ]; then
+          if [ ! -d in_bento_kiosk/build/web/assets ]; then
             echo "Assets directory not found!"; exit 1; fi
-          find build/web/assets/cake_layers -name "*.glb" -type f | sed 's/^/  -> /'
-          COUNT=$(find build/web/assets/cake_layers -name "*.glb" -type f | wc -l)
+          find in_bento_kiosk/build/web/assets/cake_layers -name "*.glb" -type f | sed 's/^/  -> /'
+          COUNT=$(find in_bento_kiosk/build/web/assets/cake_layers -name "*.glb" -type f | wc -l)
           echo "Total GLB files in build: $COUNT"
           if [ "$COUNT" -eq 0 ]; then echo "No GLB files found in build!"; exit 1; fi
           # Explicitly verify the chocolate.glb path reported by the 404
-          if [ ! -f build/web/assets/cake_layers/full_view/heartshaped/2layers/chocolate.glb ]; then
+          if [ ! -f in_bento_kiosk/build/web/assets/cake_layers/full_view/heartshaped/2layers/chocolate.glb ]; then
             echo "Missing: build/web/assets/cake_layers/full_view/heartshaped/2layers/chocolate.glb"; exit 1; fi
 
       - name: Upload web build as artifact (for inspection)
         uses: actions/upload-artifact@v4
         with:
           name: web-build
-          path: build/web
+          path: in_bento_kiosk/build/web
 
       - name: Create .nojekyll file
-        run: touch build/web/.nojekyll
+        run: touch in_bento_kiosk/build/web/.nojekyll
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build/web
+          publish_dir: ./in_bento_kiosk/build/web
 
   create-release:
     if: startsWith(github.ref, 'refs/tags/')
@@ -86,13 +91,16 @@ jobs:
           flutter-version: '3.24.3'
 
       - name: Get Flutter dependencies
+        working-directory: in_bento_kiosk
         run: flutter pub get
 
       - name: Build APK
+        working-directory: in_bento_kiosk
         run: flutter build apk --release
 
       - name: Extract version from pubspec.yaml
         id: get_version
+        working-directory: in_bento_kiosk
         run: | 
           echo "version=$(grep 'version: ' pubspec.yaml | sed 's/version: //')" >> $GITHUB_OUTPUT
 
@@ -100,4 +108,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ steps.get_version.outputs.version }}
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: in_bento_kiosk/build/app/outputs/flutter-apk/app-release.apk
