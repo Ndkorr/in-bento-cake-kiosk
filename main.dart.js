@@ -64092,7 +64092,7 @@ case 1:r="layer_view/"+s+"/"+l+"layers/seperate/"+o
 break
 case 2:r="layer_view/"+s+"/"+l+"layers/stacked/"+o
 break
-default:r=null}q="/in-bento-cake-kiosk//assets/cake_layers/"+r
+default:r=null}q="/in-bento-cake-kiosk/assets/cake_layers/"+r
 $.a8.k3$.push(new A.a6z(p,o,q))
 return q},
 Sz(){var s,r,q=this.a,p=q.d,o=p!=null
