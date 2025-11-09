@@ -96,7 +96,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
         path = 'full_view/$shape/${numLayers}layers/$fileName';
         break;
       case CakeViewMode.separateView:
-        path = 'layer_view/$shape/${numLayers}layers/seperate/$fileName';
+        path = 'layer_view/$shape/${numLayers}layers/separate/$fileName';
         break;
       case CakeViewMode.stackedView:
         path = 'layer_view/$shape/${numLayers}layers/stacked/$fileName';
