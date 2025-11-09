@@ -46,6 +46,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
       return 'assets/cake_layers/$fileName';
     }
   }
+  
 
   String _buildModelFileName() {
     // For full view, use frosting name
