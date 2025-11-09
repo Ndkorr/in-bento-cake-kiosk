@@ -40,6 +40,10 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   };
 
   String _getAssetPath(String fileName) {
+    // For web, model-viewer needs the full URL path including base-href
+    if (kIsWeb) {
+      return '/in-bento-cake-kiosk/assets/cake_layers/$fileName';
+    }
     return 'assets/cake_layers/$fileName';
   }
   
