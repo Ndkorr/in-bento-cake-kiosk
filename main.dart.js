@@ -64088,7 +64088,7 @@ if(l==null)l=2
 s=n.c==="round"?"roundshaped":"heartshaped"
 switch(p.d.a){case 0:r="full_view/"+s+"/"+l+"layers/"+o
 break
-case 1:r="layer_view/"+s+"/"+l+"layers/seperate/"+o
+case 1:r="layer_view/"+s+"/"+l+"layers/separate/"+o
 break
 case 2:r="layer_view/"+s+"/"+l+"layers/stacked/"+o
 break
