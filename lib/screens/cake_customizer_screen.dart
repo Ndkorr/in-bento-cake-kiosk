@@ -40,9 +40,14 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   };
 
   String _getAssetPath(String fileName) {
+    // For web, we need to construct the full path including the base href.
+    // GitHub Pages deploys to a subdirectory, so we need to account for that.
     if (kIsWeb) {
-      return 'assets/cake_layers/$fileName';
+      // This should correspond to the --base-href used in the build command
+      const String baseHref = '/in-bento-cake-kiosk/'; 
+      return '$baseHref/assets/cake_layers/$fileName';
     } else {
+      // For other platforms, the standard asset path is sufficient.
       return 'assets/cake_layers/$fileName';
     }
   }
