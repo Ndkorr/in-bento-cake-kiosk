@@ -46,14 +46,15 @@
 <body>
   <script>
     window.addEventListener('load', function(ev) {
-      // Keep the compatible API and initialize CanvasKit for sharper visuals.
+      // Download main.dart.js
       _flutter.loader.loadEntrypoint({
         serviceWorker: {
           serviceWorkerVersion: serviceWorkerVersion,
         },
         onEntrypointLoaded: function(engineInitializer) {
           engineInitializer.initializeEngine({
-            renderer: 'canvaskit'
+            // Use canvaskit for better 3D rendering performance
+            renderer: 'canvaskit' 
           }).then(function(appRunner) {
             appRunner.runApp();
           });

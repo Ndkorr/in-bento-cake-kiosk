@@ -2,11 +2,12 @@ name: Build and Deploy Flutter App
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ 'v*.*.*' ]
+    branches: [ "main" ] # This will run the web deploy on every push to main
+    tags: [ 'v*.*.*' ]   # This will run the release job on every new tag like v1.0.0
 
 jobs:
   build-and-deploy-web:
+    # This job only runs for pushes to the main branch, not for tags
     if: github.ref == 'refs/heads/main'
     name: Build and Deploy Web
     permissions:
@@ -25,24 +26,8 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      - name: Verify GLB files exist
-        run: |
-          echo "Checking for GLB files..."
-          find assets/cake_layers -name "*.glb" -type f
-          echo "Total GLB files found:"
-          find assets/cake_layers -name "*.glb" -type f | wc -l
-
       - name: Build Web (CanvasKit)
         run: flutter build web --release --base-href /in-bento-cake-kiosk/ --web-renderer canvaskit
-
-      - name: Verify assets in build output
-        run: |
-          echo "Checking if GLB files are in build output..."
-          find build/web/assets/cake_layers -name "*.glb" -type f || echo "No GLB files found in build!"
-          ls -la build/web/assets/ || echo "Assets directory not found!"
-
-      - name: Create .nojekyll file
-        run: touch build/web/.nojekyll
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -51,6 +36,7 @@ jobs:
           publish_dir: ./build/web
 
   create-release:
+    # This job only runs when a tag is pushed
     if: startsWith(github.ref, 'refs/tags/')
     name: Create Release and Upload APK
     permissions:
