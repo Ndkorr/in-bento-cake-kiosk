@@ -6,7 +6,6 @@ import '../theme/app_colors.dart';
 // Use CakeCard from menu_screen
 import 'menu_screen.dart';
 import 'cake_customizer_screen.dart';
-import 'loading_screen.dart';
 
 class CakeDetailsScreen extends StatefulWidget {
   const CakeDetailsScreen({
