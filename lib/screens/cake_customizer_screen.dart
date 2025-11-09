@@ -30,6 +30,7 @@ class CakeCustomizerScreen extends StatefulWidget {
 
 class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   CakeViewMode _currentView = CakeViewMode.fullView;
+  String _debugInfo = '';
 
   // Map flavor names to abbreviations
   final Map<String, String> _flavorAbbreviations = {
@@ -39,12 +40,23 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   };
 
   String _getAssetPath(String fileName) {
-    return kIsWeb
-        ? 'assets/assets/cake_layers/$fileName'
-        : 'assets/cake_layers/$fileName';
+    if (kIsWeb) {
+      return 'assets/cake_layers/$fileName';
+    } else {
+      return 'assets/cake_layers/$fileName';
+    }
   }
 
   String _buildModelFileName() {
+    // For full view, use frosting name
+    if (_currentView == CakeViewMode.fullView) {
+      if (widget.selectedFrosting != null) {
+        return '${widget.selectedFrosting!.toLowerCase()}.glb';
+      }
+      return 'vanilla.glb'; // Default
+    }
+
+    // For layer views (separate/stacked), use abbreviation format
     if (widget.selectedLayers == null ||
         widget.selectedLayers!.isEmpty ||
         widget.selectedFillings == null ||
@@ -78,16 +90,32 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
     final numLayers = widget.selectedLayers?.length ?? 2;
     final shape = widget.cakeShape == 'round' ? 'roundshaped' : 'heartshaped';
 
+    String path;
     switch (_currentView) {
       case CakeViewMode.fullView:
-        return _getAssetPath('full_view/$shape/${numLayers}layers/$fileName');
+        path = 'full_view/$shape/${numLayers}layers/$fileName';
+        break;
       case CakeViewMode.separateView:
-        return _getAssetPath(
-            'layer_view/$shape/${numLayers}layers/seperate/$fileName');
+        path = 'layer_view/$shape/${numLayers}layers/seperate/$fileName';
+        break;
       case CakeViewMode.stackedView:
-        return _getAssetPath(
-            'layer_view/$shape/${numLayers}layers/stacked/$fileName');
+        path = 'layer_view/$shape/${numLayers}layers/stacked/$fileName';
+        break;
     }
+
+    final fullPath = _getAssetPath(path);
+
+    // Update debug info
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _debugInfo =
+              'File: $fileName\nPath: $fullPath\nLayers: ${widget.selectedLayers}\nFillings: ${widget.selectedFillings}\nFrosting: ${widget.selectedFrosting}';
+        });
+      }
+    });
+
+    return fullPath;
   }
 
   String _buildSummaryText() {
@@ -220,20 +248,15 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                 borderRadius: BorderRadius.circular(24),
                 child: ModelViewer(
                   key: ValueKey(modelPath), // Force rebuild when path changes
-                  backgroundColor: const Color(0xFFFFFFFF),
+                  backgroundColor: const Color(0xFFEEEEEE),
                   src: modelPath,
                   alt:
                       'A 3D model of a customized cake - ${_getViewModeLabel()}',
-                  ar: true,
+                  ar: false,
                   autoRotate: true,
                   cameraControls: true,
+                  disableZoom: false,
                   loading: Loading.eager,
-                  relatedCss: '''
-                    model-viewer {
-                      width: 100%;
-                      height: 100%;
-                    }
-                  ''',
                 ),
               ),
             ),
@@ -276,6 +299,16 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                         fontWeight: FontWeight.w600,
                         color: AppColors.pink700,
                         height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Debug Info:\n$_debugInfo',
+                      style: GoogleFonts.ubuntu(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.pink500,
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ],
