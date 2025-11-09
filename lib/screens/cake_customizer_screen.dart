@@ -30,7 +30,7 @@ class CakeCustomizerScreen extends StatefulWidget {
 
 class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   CakeViewMode _currentView = CakeViewMode.fullView;
-  String _debugInfo = '';
+  double _summaryHeight = 0.25;
 
   // Map flavor names to abbreviations
   final Map<String, String> _flavorAbbreviations = {
@@ -46,7 +46,6 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
     }
     return 'assets/cake_layers/$fileName';
   }
-  
 
   String _buildModelFileName() {
     // For full view, use frosting name
@@ -105,17 +104,6 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
     }
 
     final fullPath = _getAssetPath(path);
-
-    // Update debug info
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        setState(() {
-          _debugInfo =
-              'File: $fileName\nPath: $fullPath\nLayers: ${widget.selectedLayers}\nFillings: ${widget.selectedFillings}\nFrosting: ${widget.selectedFrosting}';
-        });
-      }
-    });
-
     return fullPath;
   }
 
@@ -162,10 +150,31 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
     }
   }
 
+  void _addToCart() {
+    // TODO: Implement add to cart functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Cake added to cart!',
+          style: GoogleFonts.ubuntu(
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: AppColors.pink700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final modelPath = _getModelPath();
     final summaryText = _buildSummaryText();
+    final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
       backgroundColor: AppColors.cream200,
@@ -231,7 +240,6 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
           ),
           // 3D Model Viewer
           Expanded(
-            flex: 3,
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
@@ -248,7 +256,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24),
                 child: ModelViewer(
-                  key: ValueKey(modelPath), // Force rebuild when path changes
+                  key: ValueKey(modelPath),
                   backgroundColor: const Color(0xFFEEEEEE),
                   src: modelPath,
                   alt:
@@ -262,13 +270,18 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
               ),
             ),
           ),
-          // Customization Summary
-          Expanded(
-            flex: 1,
+          // Customization Summary with drag handle
+          GestureDetector(
+            onVerticalDragUpdate: (details) {
+              setState(() {
+                _summaryHeight -= details.delta.dy / screenHeight;
+                _summaryHeight = _summaryHeight.clamp(0.15, 0.5);
+              });
+            },
             child: Container(
+              height: screenHeight * _summaryHeight,
               width: double.infinity,
               margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(24),
@@ -280,40 +293,105 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                   ),
                 ],
               ),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Your Customization',
-                      style: GoogleFonts.ubuntu(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.pink700,
+              child: Column(
+                children: [
+                  // Drag handle
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.pink700,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      summaryText,
-                      style: GoogleFonts.ubuntu(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.pink700,
-                        height: 1.5,
+                  ),
+                  // Content
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Your Customization',
+                              style: GoogleFonts.ubuntu(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.pink700,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              summaryText,
+                              style: GoogleFonts.ubuntu(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.pink700,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Debug Info:\n$_debugInfo',
-                      style: GoogleFonts.ubuntu(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w400,
-                        color: AppColors.pink500,
-                        fontStyle: FontStyle.italic,
+                  ),
+                  // Add to Cart Button
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _addToCart,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Ink(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppColors.pink500, AppColors.salmon400],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Container(
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.shopping_cart_outlined,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Add to Cart',
+                                  style: GoogleFonts.ubuntu(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
