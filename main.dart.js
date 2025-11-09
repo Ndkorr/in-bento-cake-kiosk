@@ -64063,7 +64063,7 @@ A.ln.prototype={
 a0(){var s=t.N
 return new A.Io(B.ek,A.ab(["Vanilla","V","Chocolate","C","Ube","U"],s,s))}}
 A.Io.prototype={
-Ux(a){return"/in-bento-cake-kiosk/assets/cake_layers/"+a},
+Ux(a){return"/in-bento-cake-kiosk/assets/assets/cake_layers/"+a},
 Sw(){var s,r,q,p,o=this
 if(o.d===B.ek){s=o.a.f
 if(s!=null)return s.toLowerCase()+".glb"
