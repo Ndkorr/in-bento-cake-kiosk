@@ -41,7 +41,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
 
   String _getAssetPath(String fileName) {
     if (kIsWeb) {
-      return 'cake_layers/$fileName';
+      return 'assets/cake_layers/$fileName';
     } else {
       return 'assets/cake_layers/$fileName';
     }
