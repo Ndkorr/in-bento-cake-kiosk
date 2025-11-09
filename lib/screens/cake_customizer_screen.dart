@@ -40,10 +40,9 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   };
 
   String _getAssetPath(String fileName) {
-    // Revert to the standard Flutter asset path.
-    // The 'assets/' prefix is automatically handled by the build process
-    // for web, which correctly resolves the path relative to the base href.
-    return 'assets/cake_layers/$fileName';
+    return kIsWeb
+        ? 'assets/assets/cake_layers/$fileName'
+        : 'assets/cake_layers/$fileName';
   }
   
 

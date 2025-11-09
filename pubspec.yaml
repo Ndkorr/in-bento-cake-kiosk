@@ -62,14 +62,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-    - assets/cake_layers/full_view/heartshaped/2layers/
-    - assets/cake_layers/full_view/heartshaped/3layers/
-    - assets/cake_layers/full_view/roundshaped/2layers/
-    - assets/cake_layers/full_view/roundshaped/3layers/
-    - assets/cake_layers/layer_view/heartshaped/2layers/seperate/
-    - assets/cake_layers/layer_view/heartshaped/2layers/stacked/
-    - assets/cake_layers/layer_view/roundshaped/2layers/seperate/
-    - assets/cake_layers/layer_view/roundshaped/2layers/stacked/
+    - assets/cake_layers/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
