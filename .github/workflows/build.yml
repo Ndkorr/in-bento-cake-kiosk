@@ -32,14 +32,27 @@ jobs:
           echo "Total GLB files found:"
           find assets/cake_layers -name "*.glb" -type f | wc -l
 
-      - name: Build Web (CanvasKit)
-        run: flutter build web --release --base-href /in-bento-cake-kiosk/ --web-renderer canvaskit
+      - name: Build Web (CanvasKit, no PWA caching)
+        run: flutter build web --release --base-href /in-bento-cake-kiosk/ --web-renderer canvaskit --pwa-strategy=none
 
       - name: Verify assets in build output
         run: |
           echo "Checking if GLB files are in build output..."
-          find build/web/assets/cake_layers -name "*.glb" -type f || echo "No GLB files found in build!"
-          ls -la build/web/assets/ || echo "Assets directory not found!"
+          if [ ! -d build/web/assets ]; then
+            echo "Assets directory not found!"; exit 1; fi
+          find build/web/assets/cake_layers -name "*.glb" -type f | sed 's/^/  -> /'
+          COUNT=$(find build/web/assets/cake_layers -name "*.glb" -type f | wc -l)
+          echo "Total GLB files in build: $COUNT"
+          if [ "$COUNT" -eq 0 ]; then echo "No GLB files found in build!"; exit 1; fi
+          # Explicitly verify the chocolate.glb path reported by the 404
+          if [ ! -f build/web/assets/cake_layers/full_view/heartshaped/2layers/chocolate.glb ]; then
+            echo "Missing: build/web/assets/cake_layers/full_view/heartshaped/2layers/chocolate.glb"; exit 1; fi
+
+      - name: Upload web build as artifact (for inspection)
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web
 
       - name: Create .nojekyll file
         run: touch build/web/.nojekyll
