@@ -20,6 +20,7 @@ class _MenuScreenState extends State<MenuScreen>
   late AnimationController _pulseController;
   int? _selectedCakeIndex;
   final Map<int, int> _cart = {}; // cakeIndex -> quantity
+  List<Map<String, dynamic>> _customCakes = []; // Cart from customizer
 
   // Keys for animation
   final Map<int, GlobalKey> _cakeCardKeys = {};
@@ -67,11 +68,19 @@ class _MenuScreenState extends State<MenuScreen>
     _cart.forEach((cakeIndex, quantity) {
       total += _cakes[cakeIndex]['price'] * quantity;
     });
+    // Add custom cakes price
+    for (var cake in _customCakes) {
+      final price = cake['cakePrice'] ?? 0.0;
+      final quantity = cake['quantity'] ?? 1;
+      total += price * quantity;
+    }
     return total;
   }
 
   int get _totalItems {
-    return _cart.values.fold(0, (sum, quantity) => sum + quantity);
+    int presetCakes = _cart.values.fold(0, (sum, quantity) => sum + quantity);
+    int customCakes = _customCakes.fold(0, (sum, cake) => sum + (cake['quantity'] ?? 1) as int);
+    return presetCakes + customCakes;
   }
 
   void _addToCart() {
@@ -146,10 +155,27 @@ class _MenuScreenState extends State<MenuScreen>
             return _CartOverlay(
               cart: _cart,
               cakes: _cakes,
+              customCakes: _customCakes,
               onUpdateQuantity: (cakeIndex, newQuantity) {
                 // Update the main screen's state
                 _updateQuantity(cakeIndex, newQuantity);
                 // Also update the modal's state to reflect changes immediately
+                setModalState(() {});
+              },
+              onRemoveCustomCake: (index) {
+                setState(() {
+                  _customCakes.removeAt(index);
+                });
+                setModalState(() {});
+              },
+              onUpdateCustomCakeQuantity: (index, change) {
+                setState(() {
+                  final currentQuantity = _customCakes[index]['quantity'] ?? 1;
+                  final newQuantity = currentQuantity + change;
+                  if (newQuantity > 0) {
+                    _customCakes[index]['quantity'] = newQuantity;
+                  }
+                });
                 setModalState(() {});
               },
               totalPrice: _totalPrice,
@@ -325,20 +351,28 @@ class _MenuScreenState extends State<MenuScreen>
                     _selectedCakeIndex = index;
                   });
                 },
-                onViewTap: () {
-                  Navigator.push(
+                onViewTap: () async {
+                  final returnedCart = await Navigator.push<List<Map<String, dynamic>>>(
                     context,
                     PageRouteBuilder(
                       transitionDuration: const Duration(milliseconds: 500),
                       pageBuilder: (_, __, ___) => CakeDetailsScreen(
                         cake: _cakes[index],
                         cakeIndex: index,
+                        initialCartItems: _customCakes,
                       ),
                       transitionsBuilder: (_, animation, __, child) {
                         return FadeTransition(opacity: animation, child: child);
                       },
                     ),
                   );
+                  
+                  // Update custom cakes cart when returning
+                  if (returnedCart != null && mounted) {
+                    setState(() {
+                      _customCakes = returnedCart;
+                    });
+                  }
                 },
                 viewButtonText: 'View',
               ),
@@ -664,13 +698,19 @@ class _CartOverlay extends StatefulWidget {
   const _CartOverlay({
     required this.cart,
     required this.cakes,
+    required this.customCakes,
     required this.onUpdateQuantity,
+    required this.onRemoveCustomCake,
+    required this.onUpdateCustomCakeQuantity,
     required this.totalPrice,
   });
 
   final Map<int, int> cart;
   final List<Map<String, dynamic>> cakes;
+  final List<Map<String, dynamic>> customCakes;
   final Function(int, int) onUpdateQuantity;
+  final Function(int) onRemoveCustomCake;
+  final Function(int, int) onUpdateCustomCakeQuantity;
   final double totalPrice;
 
   @override
@@ -833,7 +873,7 @@ class _CartOverlayState extends State<_CartOverlay>
                           ),
                           // Cart items
                           Expanded(
-                            child: widget.cart.isEmpty
+                            child: widget.cart.isEmpty && widget.customCakes.isEmpty
                                 ? Center(
                                     child: Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
@@ -858,27 +898,42 @@ class _CartOverlayState extends State<_CartOverlay>
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 24,
                                     ),
-                                    itemCount: widget.cart.length,
+                                    itemCount: widget.cart.length + widget.customCakes.length,
                                     itemBuilder: (context, index) {
-                                      final cakeIndex =
-                                          widget.cart.keys.elementAt(index);
-                                      final quantity = widget.cart[cakeIndex]!;
-                                      final cake = widget.cakes[cakeIndex];
+                                      // Show preset cakes first, then custom cakes
+                                      if (index < widget.cart.length) {
+                                        // Preset cake
+                                        final cakeIndex =
+                                            widget.cart.keys.elementAt(index);
+                                        final quantity = widget.cart[cakeIndex]!;
+                                        final cake = widget.cakes[cakeIndex];
 
-                                      return _CartItem(
-                                        cake: cake,
-                                        quantity: quantity,
-                                        onIncrease: () => widget.onUpdateQuantity(
-                                          cakeIndex,
-                                          quantity + 1,
-                                        ),
-                                        onDecrease: () => widget.onUpdateQuantity(
-                                          cakeIndex,
-                                          quantity - 1,
-                                        ),
-                                        onDelete: () =>
-                                            widget.onUpdateQuantity(cakeIndex, 0),
-                                      );
+                                        return _CartItem(
+                                          cake: cake,
+                                          quantity: quantity,
+                                          onIncrease: () => widget.onUpdateQuantity(
+                                            cakeIndex,
+                                            quantity + 1,
+                                          ),
+                                          onDecrease: () => widget.onUpdateQuantity(
+                                            cakeIndex,
+                                            quantity - 1,
+                                          ),
+                                          onDelete: () =>
+                                              widget.onUpdateQuantity(cakeIndex, 0),
+                                        );
+                                      } else {
+                                        // Custom cake
+                                        final customIndex = index - widget.cart.length;
+                                        final customCake = widget.customCakes[customIndex];
+
+                                        return _CustomCakeCartItem(
+                                          customCake: customCake,
+                                          onDelete: () => widget.onRemoveCustomCake(customIndex),
+                                          onIncrease: () => widget.onUpdateCustomCakeQuantity(customIndex, 1),
+                                          onDecrease: () => widget.onUpdateCustomCakeQuantity(customIndex, -1),
+                                        );
+                                      }
                                     },
                                   ),
                           ),
@@ -1048,6 +1103,207 @@ class _CartItem extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Quantity controls
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.cream200,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove, size: 18),
+                  onPressed: onDecrease,
+                  color: AppColors.pink700,
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    '$quantity',
+                    style: GoogleFonts.ubuntu(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.pink700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add, size: 18),
+                  onPressed: onIncrease,
+                  color: AppColors.pink700,
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Delete button
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 20),
+            onPressed: onDelete,
+            color: Colors.red[400],
+            padding: const EdgeInsets.all(8),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Custom Cake Cart Item
+class _CustomCakeCartItem extends StatelessWidget {
+  const _CustomCakeCartItem({
+    required this.customCake,
+    required this.onDelete,
+    required this.onIncrease,
+    required this.onDecrease,
+  });
+
+  final Map<String, dynamic> customCake;
+  final VoidCallback onDelete;
+  final VoidCallback onIncrease;
+  final VoidCallback onDecrease;
+
+  String _formatCakeDetails() {
+    final shape = customCake['shape'] ?? 'Unknown';
+    final frosting = customCake['frosting'] ?? 'Unknown';
+    final numLayers = (customCake['layers'] as List?)?.length ?? 0;
+    
+    return '${shape[0].toUpperCase()}${shape.substring(1)} • $numLayers layers • $frosting frosting';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final quantity = customCake['quantity'] ?? 1;
+    final cakeName = customCake['cakeName'] ?? 'Custom Cake';
+    final cakeImage = customCake['cakeImage'];
+    final cakePrice = customCake['cakePrice'] ?? 0.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Cake image
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: cakeImage == null
+                  ? const LinearGradient(
+                      colors: [
+                        AppColors.pink500,
+                        AppColors.salmon400,
+                      ],
+                    )
+                  : LinearGradient(
+                      colors: [
+                        AppColors.cream200,
+                        AppColors.peach300.withAlpha(77),
+                      ],
+                    ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: cakeImage != null
+                  ? Image.asset(
+                      cakeImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.cake_rounded,
+                        color: AppColors.salmon400,
+                        size: 32,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.cake_rounded,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Cake info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        cakeName,
+                        style: GoogleFonts.ubuntu(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          fontStyle: FontStyle.italic,
+                          color: AppColors.pink700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.pink500, AppColors.salmon400],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'CUSTOM',
+                        style: GoogleFonts.ubuntu(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatCakeDetails(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    color: Colors.black54,
+                    height: 1.3,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '₱${cakePrice.toStringAsFixed(2)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.pink700,
                   ),
                 ),
               ],

@@ -12,10 +12,12 @@ class CakeDetailsScreen extends StatefulWidget {
     super.key,
     required this.cake,
     required this.cakeIndex,
+    this.initialCartItems, // Add this parameter
   });
 
   final Map<String, dynamic> cake;
   final int cakeIndex;
+  final List<Map<String, dynamic>>? initialCartItems; // Add this
 
   @override
   State<CakeDetailsScreen> createState() => _CakeDetailsScreenState();
@@ -51,9 +53,17 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   bool _frostingCompleted = false;
   bool _toppingsCompleted = false;
 
+
+  List<Map<String, dynamic>> _cartItems = [];
+
   @override
   void initState() {
     super.initState();
+    // Initialize cart from passed items or empty list
+    _cartItems = widget.initialCartItems != null
+        ? List.from(widget.initialCartItems!)
+        : [];
+
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 400),
       vsync: this,
@@ -65,12 +75,6 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       parent: _slideController,
       curve: Curves.easeOutCubic,
     ));
-  }
-
-  @override
-  void dispose() {
-    _slideController.dispose();
-    super.dispose();
   }
 
   void _resetAllSelections() {
@@ -167,10 +171,10 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       barrierDismissible: false,
       barrierColor: Colors.black.withOpacity(0.5),
       builder: (context) => _CakeLoadingOverlay(
-        onComplete: () {
+        onComplete: () async {
           Navigator.pop(context); // Close loading overlay
-          // Navigate to customizer
-          Navigator.push(
+          // Navigate to customizer and await result
+          final cartItem = await Navigator.push<Map<String, dynamic>>(
             context,
             MaterialPageRoute(
               builder: (context) => CakeCustomizerScreen(
@@ -180,10 +184,36 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                 selectedFillings:
                     _selectedFillings.isEmpty ? null : _selectedFillings,
                 selectedFrosting: _selectedFrosting,
+                selectedToppings: _selectedToppings.isEmpty ? null : _selectedToppings,
               ),
             ),
           );
+
+          // If cart item was returned, add it to cart
+          if (cartItem != null && mounted) {
+            // Add cake information to cart item
+            cartItem['cakeName'] = widget.cake['name'];
+            cartItem['cakeImage'] = widget.cake['image'];
+            cartItem['cakePrice'] = widget.cake['price'];
+            cartItem['quantity'] = 1; // Initialize quantity
+            
+            setState(() {
+              _cartItems.add(cartItem);
+            });
+            _showCartSuccessPopup();
+          }
         },
+      ),
+    );
+  }
+
+  void _showCartSuccessPopup() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => _CartSuccessPopup(
+        cartCount: _cartItems.length,
+        onDismiss: () => Navigator.pop(context),
       ),
     );
   }
@@ -637,7 +667,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                             color: AppColors.pink700, size: 28),
                         onPressed: () {
                           _resetAllSelections();
-                          Navigator.pop(context);
+                          Navigator.pop(context, _cartItems);
                         },
                       ),
                     ),
@@ -3072,6 +3102,119 @@ class _AnimatedIconState extends State<_AnimatedIcon>
           ),
         );
       },
+    );
+  }
+}
+
+/// Cart success popup
+class _CartSuccessPopup extends StatelessWidget {
+  const _CartSuccessPopup({
+    required this.cartCount,
+    required this.onDismiss,
+  });
+
+  final int cartCount;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 320,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(51),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.pink500, AppColors.salmon400],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: Colors.white,
+                  size: 48,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Added to Cart!',
+                style: GoogleFonts.ubuntu(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.pink700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Added to cart successfully!',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.ubuntu(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.pink500,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: onDismiss,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppColors.pink500, AppColors.salmon400],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Container(
+                      alignment: Alignment.center,
+                      child: Text(
+                        'Continue',
+                        style: GoogleFonts.ubuntu(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
