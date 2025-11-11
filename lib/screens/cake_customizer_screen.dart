@@ -279,13 +279,14 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
           Expanded(
           child: GestureDetector(
             onTapDown: (details) {
-              // Get the render box of the cake image
-              final RenderBox? cakeBox = _cakeImageKey.currentContext?.findRenderObject() as RenderBox?;
-              if (cakeBox == null) return;
+              try {
+                // Get the render box of the cake image
+                final RenderBox? cakeBox = _cakeImageKey.currentContext?.findRenderObject() as RenderBox?;
+                if (cakeBox == null) return;
 
-              // Get the tap position relative to the cake image
-              final localPosition = cakeBox.globalToLocal(details.globalPosition);
-              final cakeSize = cakeBox.size;
+                // Get the tap position relative to the cake image
+                final localPosition = cakeBox.globalToLocal(details.globalPosition);
+                final cakeSize = cakeBox.size;
 
               // Check if tap is within the canvas bounds
               if (localPosition.dx < 0 || localPosition.dx > cakeSize.width ||
@@ -306,7 +307,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                 return;
               }
 
-              if (_eraseMode) {
+                if (_eraseMode) {
                 // Remove the nearest topping under a small radius
                 final threshold = minDim * 0.08; // touch radius
                 int? removeIndex;
@@ -327,27 +328,36 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                     _placedToppings.removeAt(removeIndex!);
                   });
                 }
-                return;
-              }
+                  return;
+                }
 
-              // Only allow adding if a topping is selected
-              if (_selectedToppingToPlace == null) {
-                return;
-              }
+                // Only allow adding if a topping is selected
+                if (_selectedToppingToPlace == null) {
+                  return;
+                }
 
               // Store as normalized coordinates for stable placement across resizes
               final xPercent = (localPosition.dx / cakeSize.width).clamp(0.0, 1.0);
               final yPercent = (localPosition.dy / cakeSize.height).clamp(0.0, 1.0);
-              setState(() {
-                _placedToppings.add(
-                  ToppingPlacement(
-                    toppingName: _selectedToppingToPlace!,
-                    xPercent: xPercent,
-                    yPercent: yPercent,
-                    sizeFactor: 0.12, // relative to min(canvas.width, canvas.height)
-                  ),
-                );
-              });
+                setState(() {
+                  _placedToppings.add(
+                    ToppingPlacement(
+                      toppingName: _selectedToppingToPlace!,
+                      xPercent: xPercent,
+                      yPercent: yPercent,
+                      sizeFactor: 0.12, // relative to min(canvas.width, canvas.height)
+                    ),
+                  );
+                });
+              } catch (e, st) {
+                // Defensive: log and show a minimal UI hint to help debugging without breaking rendering
+                debugPrint('Error placing topping: $e\n$st');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not place topping: $e')),
+                  );
+                }
+              }
             },
             child: Container(
               key: _cakeImageKey,
@@ -366,33 +376,41 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                     ),
                   ),
                   // Placed toppings
-                  ...(_placedToppings.map((topping) {
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        final canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
-                        final pos = topping.pixelPosition(canvasSize);
-                        final pSize = topping.pixelSize(canvasSize);
-                        final toppingAssetName = _toppingAssetNames[topping.toppingName] ?? topping.toppingName.toLowerCase();
-                        final toppingImagePath = _getImageAssetPath('toppings/toppings/$toppingAssetName.png');
-                        return Positioned(
-                          left: pos.dx - (pSize / 2),
-                          top: pos.dy - (pSize / 2),
-                          child: IgnorePointer(
-                            child: Image.asset(
-                              toppingImagePath,
-                              width: pSize,
-                              height: pSize,
-                              errorBuilder: (_, __, ___) => Icon(
-                                Icons.error,
-                                size: pSize,
-                                color: Colors.red,
+                  ...(() {
+                    try {
+                      return _placedToppings.map((topping) {
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            final canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
+                            final pos = topping.pixelPosition(canvasSize);
+                            final pSize = topping.pixelSize(canvasSize);
+                            final toppingAssetName = _toppingAssetNames[topping.toppingName] ?? topping.toppingName.toLowerCase();
+                            final toppingImagePath = _getImageAssetPath('toppings/toppings/$toppingAssetName.png');
+                            return Positioned(
+                              left: pos.dx - (pSize / 2),
+                              top: pos.dy - (pSize / 2),
+                              child: IgnorePointer(
+                                child: Image.asset(
+                                  toppingImagePath,
+                                  width: pSize,
+                                  height: pSize,
+                                  errorBuilder: (_, __, ___) => Icon(
+                                    Icons.error,
+                                    size: pSize,
+                                    color: Colors.red,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         );
-                      },
-                    );
-                  }).toList()),
+                      }).toList();
+                    } catch (e, st) {
+                      debugPrint('Error building toppings widgets: $e\n$st');
+                      // Fallback: return an empty list so the Stack still renders
+                      return <Widget>[];
+                    }
+                  }()),
                   // Erase toggle button
                   if (widget.selectedToppings != null && widget.selectedToppings!.isNotEmpty)
                     Positioned(
