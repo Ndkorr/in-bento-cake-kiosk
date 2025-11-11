@@ -64524,7 +64524,7 @@ A.o_.prototype={
 H(){return"CakeViewMode."+this.b}}
 A.lt.prototype={
 a_(){var s=t.N
-return new A.xG(B.ep,A.a([],t.Cq),new A.b9(null,t.A),A.a9(["Vanilla","V","Chocolate","C","Ube","U"],s,s),A.a9(["Cherry","cherry","Pretzel","pretzel","Chocolate","chocolate","Mango","mango","Sprinkles","sprinkles"],s,s))}}
+return new A.xG(B.ep,A.a([],t.Cq),new A.b9(null,t.A),A.a9(["Vanilla","V","Chocolate","C","Ube","U"],s,s),A.a9(["Cherry","cherries","Pretzel","pretzels","Chocolate","chocolate","Mango","mango","Sprinkles","sprinkles"],s,s))}}
 A.xG.prototype={
 UN(a){return"/in-bento-cake-kiosk/assets/assets/cake_layers/"+a},
 SJ(){var s,r,q,p,o=this
