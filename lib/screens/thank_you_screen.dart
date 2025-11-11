@@ -31,7 +31,7 @@ class ThankYouScreen extends StatelessWidget {
             children: [
               // Logo
               Image.asset(
-                'assets/icon-original.png',
+                'assets/icons/icon-original.png',
                 width: 100,
                 height: 100,
                 fit: BoxFit.contain,
@@ -60,53 +60,110 @@ class ThankYouScreen extends StatelessWidget {
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                  ),
-                  onPressed: () {
+                child: _NewOrderButton(
+                  onTap: () {
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(builder: (_) => const WelcomeScreen()),
                       (route) => false,
                     );
                   },
-                  child: Ink(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.pink500, AppColors.salmon400],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Container(
-                      alignment: Alignment.center,
-                      height: 56,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'New Order',
-                            style: GoogleFonts.ubuntu(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Icon(Icons.arrow_forward, color: Colors.white),
-                        ],
-                      ),
-                    ),
-                  ),
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewOrderButton extends StatefulWidget {
+  const _NewOrderButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_NewOrderButton> createState() => _NewOrderButtonState();
+}
+
+class _NewOrderButtonState extends State<_NewOrderButton> {
+  bool _isPressed = false;
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = _isPressed || _isHovered;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          setState(() => _isPressed = false);
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            gradient: !isActive
+                ? const LinearGradient(
+                    colors: [AppColors.pink500, AppColors.peach300],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  )
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(3),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(37),
+              gradient: isActive
+                  ? const LinearGradient(
+                      colors: [AppColors.pink500, AppColors.peach300],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    )
+                  : null,
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isActive ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(34),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'New Order',
+                    style: GoogleFonts.ubuntu(
+                      color: !isActive ? Colors.white : AppColors.pink500,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    color: !isActive ? Colors.white : AppColors.pink500,
+                    size: 26,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
