@@ -309,14 +309,18 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
         Expanded(
           child: GestureDetector(
             onTapDown: (details) {
+              if (_selectedToppingToPlace == null) {
+                return;
+              }
+
               final RenderBox? cakeBox = _cakeImageKey.currentContext
                   ?.findRenderObject() as RenderBox?;
               if (cakeBox == null) return;
+
               final localPosition =
                   cakeBox.globalToLocal(details.globalPosition);
               final cakeSize = cakeBox.size;
 
-              // Check if tap is within the cake bounds
               if (localPosition.dx < 0 ||
                   localPosition.dx > cakeSize.width ||
                   localPosition.dy < 0 ||
@@ -324,7 +328,6 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                 return;
               }
 
-              // Calculate center point
               final centerX = cakeSize.width / 2;
               final centerY = cakeSize.height / 2;
               final distanceFromCenter = ((localPosition.dx - centerX) *
@@ -336,8 +339,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
               }
 
               setState(() {
-                if (eraserSelected) {
-                  // Remove topping if tapped near one
+                if (_selectedToppingToPlace == '__eraser__') {
                   final toRemove = _placedToppings.indexWhere((topping) {
                     final dx = topping.position.dx - localPosition.dx;
                     final dy = topping.position.dy - localPosition.dy;
@@ -347,14 +349,13 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                   if (toRemove != -1) {
                     _placedToppings.removeAt(toRemove);
                   }
-                } else if (_selectedToppingToPlace != null) {
+                } else {
                   _placedToppings.add(
                     ToppingPlacement(
                       toppingName: _selectedToppingToPlace!,
                       position: localPosition,
                     ),
                   );
-                  _selectedToppingToPlace = null;
                 }
               });
             },
