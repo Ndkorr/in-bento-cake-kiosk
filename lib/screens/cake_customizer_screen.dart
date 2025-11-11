@@ -49,6 +49,11 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
     return 'assets/cake_layers/$fileName';
   }
 
+  String _getImageAssetPath(String fileName) {
+    // For Image.asset widget, don't add the web prefix
+    return 'assets/cake_layers/$fileName';
+  }
+
   String _buildModelFileName() {
     if (_currentView == CakeViewMode.fullView) {
       if (widget.selectedFrosting != null) {
@@ -92,9 +97,9 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
         path = 'full_view/$shape/${numLayers}layers/$fileName';
         break;
       case CakeViewMode.toppingsView:
-        // Return the top view image for toppings
+        // Return the top view image path for toppings (for Image.asset)
         final frostingName = widget.selectedFrosting?.toLowerCase() ?? 'vanilla';
-        return _getAssetPath('toppings/$shape/${frostingName}top.png');
+        return _getImageAssetPath('toppings/$shape/${frostingName}top.png');
       case CakeViewMode.separateView:
         path = 'layer_view/$shape/${numLayers}layers/seperate/$fileName';
         break;
@@ -196,7 +201,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
           ),
           // Placed toppings
           ...(_placedToppings.map((topping) {
-            final toppingImagePath = _getAssetPath('toppings/toppings/${topping.toppingName.toLowerCase()}.png');
+            final toppingImagePath = _getImageAssetPath('toppings/toppings/${topping.toppingName.toLowerCase()}.png');
             return Positioned(
               left: topping.position.dx - (topping.size / 2),
               top: topping.position.dy - (topping.size / 2),
