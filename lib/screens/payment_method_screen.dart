@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import 'thank_you_screen.dart';
 
 class PaymentMethodScreen extends StatelessWidget {
   const PaymentMethodScreen({super.key});
@@ -31,7 +32,10 @@ class PaymentMethodScreen extends StatelessWidget {
               label: 'Pay at the Counter',
               onTap: () {
                 // TODO: Handle pay at counter logic
-                Navigator.pop(context, 'counter');
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ThankYouScreen()),
+                );
               },
             ),
             const SizedBox(height: 24),
@@ -40,7 +44,10 @@ class PaymentMethodScreen extends StatelessWidget {
               label: 'Card or Scan QR',
               onTap: () {
                 // TODO: Handle card/QR logic
-                Navigator.pop(context, 'card_or_qr');
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ThankYouScreen()),
+                );
               },
             ),
           ],
