@@ -5,8 +5,8 @@ const CACHE_NAME = 'flutter-app-cache';
 
 const RESOURCES = {"flutter.js": "f393d3c16b631f36852323de8e583132",
 "manifest.json": "664caf8b2e29395c77a244ca2f02d135",
-"index.html": "15b14ab62f1c70f28beec4d13f111241",
-"/": "15b14ab62f1c70f28beec4d13f111241",
+"index.html": "3e38382a10eab994852e1eaed5366b15",
+"/": "3e38382a10eab994852e1eaed5366b15",
 "assets/shaders/ink_sparkle.frag": "ecc85a2e95f5e9f53123dcaf8cb9b6ce",
 "assets/AssetManifest.bin.json": "0e59d071eca50873850ae1a7bc267978",
 "assets/assets/icons/icon.png": "eb11fd097199c3e7c7ebb7319cbb2037",
@@ -146,7 +146,7 @@ const RESOURCES = {"flutter.js": "f393d3c16b631f36852323de8e583132",
 "assets/assets/cake_layers/toppings/toppings/chocolate.png": "d92819bb392b5eb9835d8fc88dd35358",
 "assets/assets/cake_layers/toppings/toppings/mango.png": "e4a1bf4c5d2adcdf4fb2c0dd567575b9",
 "assets/assets/cake_layers/toppings/toppings/sprinkles.png": "03325661dda55390fae88d9edb410ab0",
-"assets/fonts/MaterialIcons-Regular.otf": "4938c8c5d91895d1fb90019fd5f32732",
+"assets/fonts/MaterialIcons-Regular.otf": "6d8512aeb43d62264a9c97abbaee9d83",
 "assets/NOTICES": "342f17a5e44a25db505adc2f8d2839ad",
 "assets/packages/cupertino_icons/assets/CupertinoIcons.ttf": "e986ebe42ef785b27164c36a9abc7818",
 "assets/packages/model_viewer_plus/assets/template.html": "8de94ff19fee64be3edffddb412ab63c",
@@ -166,9 +166,9 @@ const RESOURCES = {"flutter.js": "f393d3c16b631f36852323de8e583132",
 "canvaskit/skwasm.js.symbols": "262f4827a1317abb59d71d6c587a93e2",
 "favicon.png": "5dcef449791fa27946b3d35ad8803796",
 "icon_nobg.png": "7ee13267ad24f03d13268ff06e047cb3",
-"flutter_bootstrap.js": "70b997fc103e0c7c3f0989c7e5c142f4",
+"flutter_bootstrap.js": "632b72678af0a66d9c6e920f3a5f120b",
 "version.json": "a1841d962f7e3f4887325fbeb0e06d5c",
-"main.dart.js": "6b582516b22b8d9b492803397cddcfad"};
+"main.dart.js": "bc48a117a7724c939b2dbae861163f3f"};
 // The application shell files that are downloaded before a service worker can
 // start.
 const CORE = ["main.dart.js",
