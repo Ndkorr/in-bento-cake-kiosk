@@ -79,6 +79,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
         widget.selectedFillings!.isEmpty) {
       return 'VVV.glb';
     }
+    
 
     final parts = <String>[];
     final layer1 = widget.selectedLayers![0];
