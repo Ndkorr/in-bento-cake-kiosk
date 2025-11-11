@@ -171,43 +171,40 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
 
   Widget _buildToppingsView() {
     final toppingAssetPath = _getModelPath();
+    final bool eraserSelected = _selectedToppingToPlace == '__eraser__';
 
     return Column(
       children: [
-        // Topping selection buttons
+        // Topping selection buttons + Eraser tool
         if (widget.selectedToppings != null &&
             widget.selectedToppings!.isNotEmpty)
           Container(
             height: 80,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: ListView.builder(
+            child: ListView(
               scrollDirection: Axis.horizontal,
-              itemCount: widget.selectedToppings!.length,
-              itemBuilder: (context, index) {
-                final topping = widget.selectedToppings![index];
-                final isSelected = _selectedToppingToPlace == topping;
-                final toppingAssetName =
-                    _toppingAssetNames[topping] ?? topping.toLowerCase();
-
-                return Padding(
+              children: [
+                // Eraser tool button
+                Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: GestureDetector(
                     onTap: () {
                       setState(() {
-                        _selectedToppingToPlace = isSelected ? null : topping;
+                        _selectedToppingToPlace =
+                            eraserSelected ? null : '__eraser__';
                       });
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       width: 70,
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.pink700 : Colors.white,
+                        color: eraserSelected ? Colors.red[300] : Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: AppColors.pink700,
+                          color: Colors.red,
                           width: 2,
                         ),
-                        boxShadow: isSelected
+                        boxShadow: eraserSelected
                             ? [
                                 BoxShadow(
                                   color: Colors.black.withAlpha(40),
@@ -220,26 +217,16 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Image.asset(
-                            _getImageAssetPath(
-                                'toppings/toppings/$toppingAssetName.png'),
-                            width: 32,
-                            height: 32,
-                            errorBuilder: (_, __, ___) => Icon(
-                              Icons.cake,
-                              size: 32,
-                              color:
-                                  isSelected ? Colors.white : AppColors.pink700,
-                            ),
-                          ),
+                          Icon(Icons.auto_fix_normal,
+                              color: eraserSelected ? Colors.white : Colors.red,
+                              size: 32),
                           const SizedBox(height: 4),
                           Text(
-                            topping,
+                            'Eraser',
                             style: GoogleFonts.ubuntu(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color:
-                                  isSelected ? Colors.white : AppColors.pink700,
+                              color: eraserSelected ? Colors.white : Colors.red,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -247,25 +234,84 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                       ),
                     ),
                   ),
-                );
-              },
+                ),
+                // Topping buttons
+                ...widget.selectedToppings!.map((topping) {
+                  final isSelected = _selectedToppingToPlace == topping;
+                  final toppingAssetName =
+                      _toppingAssetNames[topping] ?? topping.toLowerCase();
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedToppingToPlace = isSelected ? null : topping;
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 70,
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.pink700 : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.pink700,
+                            width: 2,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withAlpha(40),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              _getImageAssetPath(
+                                  'toppings/toppings/$toppingAssetName.png'),
+                              width: 32,
+                              height: 32,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.cake,
+                                size: 32,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.pink700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              topping,
+                              style: GoogleFonts.ubuntu(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.pink700,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ],
             ),
           ),
         // Cake with toppings
         Expanded(
           child: GestureDetector(
             onTapDown: (details) {
-              // Only allow adding if a topping is selected
-              if (_selectedToppingToPlace == null) {
-                return;
-              }
-
-              // Get the render box of the cake image
               final RenderBox? cakeBox = _cakeImageKey.currentContext
                   ?.findRenderObject() as RenderBox?;
               if (cakeBox == null) return;
-
-              // Get the tap position relative to the cake image
               final localPosition =
                   cakeBox.globalToLocal(details.globalPosition);
               final cakeSize = cakeBox.size;
@@ -284,20 +330,32 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
               final distanceFromCenter = ((localPosition.dx - centerX) *
                       (localPosition.dx - centerX) +
                   (localPosition.dy - centerY) * (localPosition.dy - centerY));
-
-              // Only allow placement within a circular/heart area (adjust radius as needed)
               final maxRadius = (cakeSize.width * 0.4) * (cakeSize.width * 0.4);
               if (distanceFromCenter > maxRadius) {
                 return;
               }
 
               setState(() {
-                _placedToppings.add(
-                  ToppingPlacement(
-                    toppingName: _selectedToppingToPlace!,
-                    position: localPosition,
-                  ),
-                );
+                if (eraserSelected) {
+                  // Remove topping if tapped near one
+                  final toRemove = _placedToppings.indexWhere((topping) {
+                    final dx = topping.position.dx - localPosition.dx;
+                    final dy = topping.position.dy - localPosition.dy;
+                    return (dx * dx + dy * dy) <
+                        (topping.size / 2) * (topping.size / 2);
+                  });
+                  if (toRemove != -1) {
+                    _placedToppings.removeAt(toRemove);
+                  }
+                } else if (_selectedToppingToPlace != null) {
+                  _placedToppings.add(
+                    ToppingPlacement(
+                      toppingName: _selectedToppingToPlace!,
+                      position: localPosition,
+                    ),
+                  );
+                  _selectedToppingToPlace = null;
+                }
               });
             },
             child: Container(
@@ -319,7 +377,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                       ),
                     ),
                   ),
-                  // Placed toppings
+                  // Placed toppings (no tap-to-remove)
                   ...(_placedToppings.map((topping) {
                     final toppingAssetName =
                         _toppingAssetNames[topping.toppingName] ??
@@ -329,28 +387,21 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                     return Positioned(
                       left: topping.position.dx - (topping.size / 2),
                       top: topping.position.dy - (topping.size / 2),
-                      child: GestureDetector(
-                        onTap: () {
-                          // Remove topping on tap
-                          setState(() {
-                            _placedToppings.remove(topping);
-                          });
-                        },
-                        child: Image.asset(
-                          toppingImagePath,
-                          width: topping.size,
-                          height: topping.size,
-                          errorBuilder: (_, __, ___) => Icon(
-                            Icons.error,
-                            size: topping.size,
-                            color: Colors.red,
-                          ),
+                      child: Image.asset(
+                        toppingImagePath,
+                        width: topping.size,
+                        height: topping.size,
+                        errorBuilder: (_, __, ___) => Icon(
+                          Icons.error,
+                          size: topping.size,
+                          color: Colors.red,
                         ),
                       ),
                     );
                   }).toList()),
                   // Instruction text
                   if (_selectedToppingToPlace == null &&
+                      !eraserSelected &&
                       widget.selectedToppings != null &&
                       widget.selectedToppings!.isNotEmpty)
                     Positioned(
@@ -376,7 +427,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                         ),
                       ),
                     ),
-                  if (_selectedToppingToPlace != null)
+                  if (_selectedToppingToPlace != null && !eraserSelected)
                     Positioned(
                       bottom: 20,
                       left: 0,
@@ -390,7 +441,31 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'Tap on cake to place $_selectedToppingToPlace\nTap topping to remove',
+                          'Tap on cake to place $_selectedToppingToPlace',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.ubuntu(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (eraserSelected)
+                    Positioned(
+                      bottom: 20,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                        margin: const EdgeInsets.symmetric(horizontal: 40),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Tap a topping to erase it',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.ubuntu(
                             color: Colors.white,
