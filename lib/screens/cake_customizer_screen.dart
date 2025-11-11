@@ -46,8 +46,8 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
 
   // Map incorrect names to correct asset filenames
   final Map<String, String> _toppingAssetNames = {
-    'Cherry': 'cherry',
-    'Pretzel': 'pretzel',
+    'Cherry': 'cherries',
+    'Pretzel': 'pretzels',
     'Chocolate': 'chocolate',
     'Mango': 'mango',
     'Sprinkles': 'sprinkles',
