@@ -555,27 +555,68 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
     super.dispose();
   }
   Widget build(BuildContext context) {
-    final modelPath = _getModelPath();
-    final summaryText = _buildSummaryText();
-    final screenHeight = MediaQuery.of(context).size.height;
+  final modelPath = _getModelPath();
+  final summaryText = _buildSummaryText();
+  final screenHeight = MediaQuery.of(context).size.height;
 
-    return Scaffold(
-      backgroundColor: AppColors.cream200,
-      appBar: AppBar(
-        title: Text(
-          'Customize Your Cake',
-          style: GoogleFonts.ubuntu(
-            fontWeight: FontWeight.w900,
-            color: AppColors.pink700,
+  return Scaffold(
+    backgroundColor: AppColors.cream200,
+    appBar: AppBar(
+      title: Text(
+        'Customize Your Cake',
+        style: GoogleFonts.ubuntu(
+          fontWeight: FontWeight.w900,
+          color: AppColors.pink700,
+        ),
+      ),
+      backgroundColor: Colors.white,
+      elevation: 0,
+      iconTheme: const IconThemeData(color: AppColors.pink700),
+    ),
+    body: Stack(
+      children: [
+        // Cake area (fixed height)
+        Align(
+          alignment: Alignment.topCenter,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            height: screenHeight * 0.55, // Fixed height for cake area
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(25),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: _currentView == CakeViewMode.toppingsView
+                  ? _buildToppingsView()
+                  : ModelViewer(
+                      key: ValueKey(modelPath),
+                      backgroundColor: const Color(0xFFEEEEEE),
+                      src: modelPath,
+                      alt:
+                          'A 3D model of a customized cake - ${_getViewModeLabel()}',
+                      ar: false,
+                      autoRotate: true,
+                      cameraControls: true,
+                      disableZoom: false,
+                      loading: Loading.eager,
+                    ),
+            ),
           ),
         ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.pink700),
-      ),
-      body: Column(
-        children: [
-          Padding(
+        // View mode buttons (keep at top)
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
@@ -604,7 +645,6 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                     },
                   ),
                 ),
-                // Only show Separate and Stacked for 2-layer cakes
                 if (widget.selectedLayers != null &&
                     widget.selectedLayers!.length == 2) ...[
                   const SizedBox(width: 8),
@@ -637,40 +677,13 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(25),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: _currentView == CakeViewMode.toppingsView
-                    ? _buildToppingsView()
-                    : ModelViewer(
-                        key: ValueKey(modelPath),
-                        backgroundColor: const Color(0xFFEEEEEE),
-                        src: modelPath,
-                        alt:
-                            'A 3D model of a customized cake - ${_getViewModeLabel()}',
-                        ar: false,
-                        autoRotate: true,
-                        cameraControls: true,
-                        disableZoom: false,
-                        loading: Loading.eager,
-                      ),
-              ),
-            ),
-          ),
-          GestureDetector(
+        ),
+        // Draggable summary bar (overlay at bottom)
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: GestureDetector(
             onVerticalDragUpdate: (details) {
               setState(() {
                 _summaryHeight -= details.delta.dy / screenHeight;
@@ -795,9 +808,9 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
               ),
             ),
           ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ));
   }
 }
 
