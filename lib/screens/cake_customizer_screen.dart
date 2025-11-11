@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import 'dart:async';
 
 enum CakeViewMode {
   fullView,
@@ -37,6 +38,8 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   List<ToppingPlacement> _placedToppings = [];
   String? _selectedToppingToPlace;
   GlobalKey _cakeImageKey = GlobalKey();
+  Timer? _instructionTimer;
+  bool _showInstruction = false;
 
   final Map<String, String> _flavorAbbreviations = {
     'Vanilla': 'V',
@@ -192,6 +195,8 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                       setState(() {
                         _selectedToppingToPlace =
                             eraserSelected ? null : '__eraser__';
+                        _showInstruction = false; // Hide instruction for eraser
+                        _instructionTimer?.cancel();
                       });
                     },
                     child: AnimatedContainer(
@@ -246,6 +251,11 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                       onTap: () {
                         setState(() {
                           _selectedToppingToPlace = isSelected ? null : topping;
+                          _showInstruction =
+                              !isSelected; // Show instruction when a topping is selected
+                          if (_showInstruction) {
+                            _instructionTimer?.cancel();
+                          }
                         });
                       },
                       child: AnimatedContainer(
@@ -356,6 +366,17 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                       position: localPosition,
                     ),
                   );
+                  // Hide the instruction after 2 seconds
+                  if (_showInstruction) {
+                    _instructionTimer?.cancel();
+                    _instructionTimer = Timer(const Duration(seconds: 2), () {
+                      if (mounted) {
+                        setState(() {
+                          _showInstruction = false;
+                        });
+                      }
+                    });
+                  }
                 }
               });
             },
@@ -401,10 +422,9 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                     );
                   }).toList()),
                   // Instruction text
-                  if (_selectedToppingToPlace == null &&
+                  if (_selectedToppingToPlace != null &&
                       !eraserSelected &&
-                      widget.selectedToppings != null &&
-                      widget.selectedToppings!.isNotEmpty)
+                      _showInstruction)
                     Positioned(
                       bottom: 20,
                       left: 0,
@@ -418,7 +438,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'Select a topping above to start placing',
+                          'Tap on cake to place $_selectedToppingToPlace',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.ubuntu(
                             color: Colors.white,
@@ -428,7 +448,9 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                         ),
                       ),
                     ),
-                  if (_selectedToppingToPlace != null && !eraserSelected)
+                  if (_selectedToppingToPlace != null &&
+                      !eraserSelected &&
+                      _showInstruction)
                     Positioned(
                       bottom: 20,
                       left: 0,
@@ -528,6 +550,10 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   }
 
   @override
+  void dispose() {
+    _instructionTimer?.cancel();
+    super.dispose();
+  }
   Widget build(BuildContext context) {
     final modelPath = _getModelPath();
     final summaryText = _buildSummaryText();
