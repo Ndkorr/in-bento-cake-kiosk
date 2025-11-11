@@ -46,7 +46,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       body: Stack(
         children: [
           // Full-screen tiled icons background
-          const _TiledIcons(),
+          const TiledIcons(),
 
           // Main content - card uses 80% of screen, portrait-friendly
           SafeArea(
@@ -523,8 +523,8 @@ class _OrderTypeButtonState extends State<_OrderTypeButton> {
 }
 
 /// Tiled icons with individual animations
-class _TiledIcons extends StatelessWidget {
-  const _TiledIcons();
+class TiledIcons extends StatelessWidget {
+  const TiledIcons();
 
   @override
   Widget build(BuildContext context) {

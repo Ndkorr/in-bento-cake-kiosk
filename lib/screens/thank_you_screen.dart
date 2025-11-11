@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import 'welcome_screen.dart';
+import 'welcome_screen.dart' show TiledIcons;
 
 class ThankYouScreen extends StatelessWidget {
   const ThankYouScreen({super.key});
@@ -10,68 +11,76 @@ class ThankYouScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.cream200,
-      body: Center(
-        child: Container(
-          width: 400,
-          constraints: const BoxConstraints(maxWidth: 500),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(32),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
+      body: Stack(
+        children: [
+          const TiledIcons(),
+          Center(
+            child: Container(
+              width: 400,
+              constraints: const BoxConstraints(maxWidth: 500),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(32),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-            ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Logo
+                  Image.asset(
+                    'assets/icons/icon-original.png',
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'THANK YOU & COME AGAIN!',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.ubuntu(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.pink700,
+                      fontStyle: FontStyle.italic,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'We appreciate your order.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.ubuntu(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _NewOrderButton(
+                      onTap: () {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                              builder: (_) => const WelcomeScreen()),
+                          (route) => false,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Logo
-              Image.asset(
-                'assets/icons/icon-original.png',
-                width: 100,
-                height: 100,
-                fit: BoxFit.contain,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'THANK YOU & COME AGAIN!',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.ubuntu(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.pink700,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'We appreciate your order.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.ubuntu(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: _NewOrderButton(
-                  onTap: () {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                      (route) => false,
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
