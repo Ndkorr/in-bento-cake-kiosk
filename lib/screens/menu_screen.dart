@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import '../theme/app_colors.dart';
 import 'cake_details_screen.dart';
+import 'payment_method_screen.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key, required this.orderType});
@@ -984,9 +985,14 @@ class _CartOverlayState extends State<_CartOverlay>
                                       ),
                                       const SizedBox(height: 16),
                                       _MenuActionButton(
-                                        onTap: () {
-                                          // TODO: Navigate to checkout
-                                          debugPrint('Checkout tapped');
+                                        onTap: () async {
+                                          final method = await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const PaymentMethodScreen()),
+                                          );
+                                          // Handle the returned method ('counter' or 'card_or_qr')
                                         },
                                         gradient: const LinearGradient(
                                           colors: [
