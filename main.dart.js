@@ -20700,11 +20700,9 @@ a7_:function a7_(a,b,c){this.a=a
 this.b=b
 this.c=c},
 a73:function a73(a){this.a=a},
-a7b:function a7b(a,b){this.a=a
+a7b:function a7b(a){this.a=a},
+a70:function a70(a,b){this.a=a
 this.b=b},
-a70:function a70(a,b,c){this.a=a
-this.b=b
-this.c=c},
 a6Z:function a6Z(a){this.a=a},
 a78:function a78(){},
 a79:function a79(a){this.a=a},
@@ -64606,7 +64604,7 @@ q=A.aH(12)
 k.push(A.fB(20,A.am(n,A.aw("Tap on cake to place "+A.k(s),n,n,A.aG().$3$color$fontSize$fontWeight(B.f,14,B.aO),B.ab),B.j,n,n,new A.ak(r,n,n,q,n,n,B.o),n,n,n,B.hL,B.hI,n,n,n),n,n,0,0,n,n))}if(l){s=A.E(B.c.Y(178.5),0,0,0)
 r=A.aH(12)
 k.push(A.fB(20,A.am(n,A.aw("Tap a topping to erase it",n,n,A.aG().$3$color$fontSize$fontWeight(B.f,14,B.aO),B.ab),B.j,n,n,new A.ak(s,n,n,r,n,n,B.o),n,n,n,B.hL,B.hI,n,n,n),n,n,0,0,n,n))}if(i.length!==0)k.push(A.fB(n,A.avG(B.BP,A.aw("Clear All",n,n,A.aG().$1$fontWeight(B.aa),n),new A.a7a(o),A.ahZ(n,n,B.l,n,n,n,n,n,n,B.f,n,n,B.AI,n,new A.cT(A.aH(12),B.x),n,n,n,n)),n,n,n,16,16,n))
-j.push(A.c9(A.cE(n,A.am(n,A.cK(B.a4,k,B.H,B.a_),B.j,B.z,n,n,n,n,n,n,n,n,n,n),B.I,!1,n,n,n,n,n,n,n,n,n,n,n,n,n,n,n,n,new A.a7b(o,l),n,n),1))
+j.push(A.c9(A.cE(n,A.am(n,A.cK(B.a4,k,B.H,B.a_),B.j,B.z,n,n,n,n,n,n,n,n,n,n),B.I,!1,n,n,n,n,n,n,n,n,n,n,n,n,n,n,n,n,new A.a7b(o),n,n),1))
 return A.br(j,B.r,B.p,B.v)},
 SU(){var s=this.a,r=A.a9(["shape",s.c,"layers",s.d,"fillings",s.e,"frosting",s.f,"timestamp",new A.eE(Date.now(),0,!1)],t.N,t.X)
 s=this.c
@@ -64661,31 +64659,31 @@ A.a73.prototype={
 $3(a,b,c){return A.cG(B.bd,this.a?B.f:B.l,null,32)},
 $S:24}
 A.a7b.prototype={
-$1(a){var s,r,q,p,o=this.a,n=$.a8.ac$.x.i(0,o.w)
-n=n==null?null:n.gO()
-t.Qv.a(n)
-if(n==null)return
-s=n.iV(a.a)
-r=n.gt()
-n=s.a
-q=!0
-if(!(n<0))if(!(n>r.a)){q=s.b
-q=q<0||q>r.b}if(q)return
-q=r.a
-n-=q/2
-p=s.b-r.b/2
-q*=0.4
-if(n*n+p*p>q*q)return
-o.I(new A.a70(o,this.b,s))},
+$1(a){var s,r,q,p,o,n=this.a
+if(n.r==null)return
+s=$.a8.ac$.x.i(0,n.w)
+s=s==null?null:s.gO()
+t.Qv.a(s)
+if(s==null)return
+r=s.iV(a.a)
+q=s.gt()
+s=r.a
+p=!0
+if(!(s<0))if(!(s>q.a)){p=r.b
+p=p<0||p>q.b}if(p)return
+p=q.a
+s-=p/2
+o=r.b-q.b/2
+p*=0.4
+if(s*s+o*o>p*p)return
+n.I(new A.a70(n,r))},
 $S:12}
 A.a70.prototype={
-$0(){var s,r,q,p=this
-if(p.b){s=p.a.f
-r=B.b.a5s(s,new A.a6Z(p.c))
-if(r!==-1)B.b.f1(s,r)}else{s=p.a
-q=s.r
-if(q!=null){s.f.push(new A.kJ(q,p.c))
-s.r=null}}},
+$0(){var s,r=this.a,q=r.r,p=this.b
+r=r.f
+if(q==="__eraser__"){s=B.b.a5s(r,new A.a6Z(p))
+if(s!==-1)B.b.f1(r,s)}else{q.toString
+r.push(new A.kJ(q,p))}},
 $S:0}
 A.a6Z.prototype={
 $1(a){var s=a.b,r=this.a,q=s.a-r.a,p=s.b-r.b
