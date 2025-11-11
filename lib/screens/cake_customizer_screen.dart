@@ -35,11 +35,22 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   CakeViewMode _currentView = CakeViewMode.fullView;
   double _summaryHeight = 0.25;
   List<ToppingPlacement> _placedToppings = [];
+  String? _selectedToppingToPlace;
+  GlobalKey _cakeImageKey = GlobalKey();
 
   final Map<String, String> _flavorAbbreviations = {
     'Vanilla': 'V',
     'Chocolate': 'C',
     'Ube': 'U',
+  };
+
+  // Map incorrect names to correct asset filenames
+  final Map<String, String> _toppingAssetNames = {
+    'Cherry': 'cherry',
+    'Pretzel': 'pretzel',
+    'Chocolate': 'chocolate',
+    'Mango': 'mango',
+    'Sprinkles': 'sprinkles',
   };
 
   String _getAssetPath(String fileName) {
@@ -160,125 +171,250 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   Widget _buildToppingsView() {
     final toppingAssetPath = _getModelPath();
     
-    return GestureDetector(
-      onTapDown: (details) {
-        // Only allow adding toppings if toppings were selected
-        if (widget.selectedToppings == null || widget.selectedToppings!.isEmpty) {
-          return;
-        }
-
-        // Get the tap position relative to the widget
-        final RenderBox box = context.findRenderObject() as RenderBox;
-        final localPosition = box.globalToLocal(details.globalPosition);
-
-        // Cycle through selected toppings
-        final toppingIndex = _placedToppings.length % widget.selectedToppings!.length;
-        final toppingName = widget.selectedToppings![toppingIndex];
-
-        setState(() {
-          _placedToppings.add(
-            ToppingPlacement(
-              toppingName: toppingName,
-              position: localPosition,
+    return Column(
+      children: [
+        // Topping selection buttons
+        if (widget.selectedToppings != null && widget.selectedToppings!.isNotEmpty)
+          Container(
+            height: 80,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: widget.selectedToppings!.length,
+              itemBuilder: (context, index) {
+                final topping = widget.selectedToppings![index];
+                final isSelected = _selectedToppingToPlace == topping;
+                final toppingAssetName = _toppingAssetNames[topping] ?? topping.toLowerCase();
+                
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedToppingToPlace = isSelected ? null : topping;
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 70,
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.pink700 : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.pink700,
+                          width: 2,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withAlpha(40),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : [],
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            _getImageAssetPath('toppings/toppings/$toppingAssetName.png'),
+                            width: 32,
+                            height: 32,
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.cake,
+                              size: 32,
+                              color: isSelected ? Colors.white : AppColors.pink700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            topping,
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected ? Colors.white : AppColors.pink700,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        });
-      },
-      child: Stack(
-        children: [
-          // Background cake top view
-          Positioned.fill(
-            child: Image.asset(
-              toppingAssetPath,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Container(
-                color: Colors.grey[200],
-                child: const Center(
-                  child: Icon(Icons.cake, size: 100, color: Colors.grey),
-                ),
+          ),
+        // Cake with toppings
+        Expanded(
+          child: GestureDetector(
+            onTapDown: (details) {
+              // Only allow adding if a topping is selected
+              if (_selectedToppingToPlace == null) {
+                return;
+              }
+
+              // Get the render box of the cake image
+              final RenderBox? cakeBox = _cakeImageKey.currentContext?.findRenderObject() as RenderBox?;
+              if (cakeBox == null) return;
+
+              // Get the tap position relative to the cake image
+              final localPosition = cakeBox.globalToLocal(details.globalPosition);
+              final cakeSize = cakeBox.size;
+
+              // Check if tap is within the cake bounds
+              if (localPosition.dx < 0 || localPosition.dx > cakeSize.width ||
+                  localPosition.dy < 0 || localPosition.dy > cakeSize.height) {
+                return;
+              }
+
+              // Calculate center point
+              final centerX = cakeSize.width / 2;
+              final centerY = cakeSize.height / 2;
+              final distanceFromCenter = ((localPosition.dx - centerX) * (localPosition.dx - centerX) +
+                  (localPosition.dy - centerY) * (localPosition.dy - centerY));
+              
+              // Only allow placement within a circular/heart area (adjust radius as needed)
+              final maxRadius = (cakeSize.width * 0.4) * (cakeSize.width * 0.4);
+              if (distanceFromCenter > maxRadius) {
+                return;
+              }
+
+              setState(() {
+                _placedToppings.add(
+                  ToppingPlacement(
+                    toppingName: _selectedToppingToPlace!,
+                    position: localPosition,
+                  ),
+                );
+              });
+            },
+            child: Container(
+              color: Colors.transparent,
+              child: Stack(
+                children: [
+                  // Background cake top view
+                  Positioned.fill(
+                    child: Image.asset(
+                      key: _cakeImageKey,
+                      toppingAssetPath,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: Icon(Icons.cake, size: 100, color: Colors.grey),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Placed toppings
+                  ...(_placedToppings.map((topping) {
+                    final toppingAssetName = _toppingAssetNames[topping.toppingName] ?? topping.toppingName.toLowerCase();
+                    final toppingImagePath = _getImageAssetPath('toppings/toppings/$toppingAssetName.png');
+                    return Positioned(
+                      left: topping.position.dx - (topping.size / 2),
+                      top: topping.position.dy - (topping.size / 2),
+                      child: GestureDetector(
+                        onTap: () {
+                          // Remove topping on tap
+                          setState(() {
+                            _placedToppings.remove(topping);
+                          });
+                        },
+                        child: Image.asset(
+                          toppingImagePath,
+                          width: topping.size,
+                          height: topping.size,
+                          errorBuilder: (_, __, ___) => Icon(
+                            Icons.error,
+                            size: topping.size,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList()),
+                  // Instruction text
+                  if (_selectedToppingToPlace == null && widget.selectedToppings != null && widget.selectedToppings!.isNotEmpty)
+                    Positioned(
+                      bottom: 20,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        margin: const EdgeInsets.symmetric(horizontal: 40),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Select a topping above to start placing',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.ubuntu(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (_selectedToppingToPlace != null)
+                    Positioned(
+                      bottom: 20,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        margin: const EdgeInsets.symmetric(horizontal: 40),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Tap on cake to place $_selectedToppingToPlace\nTap topping to remove',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.ubuntu(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Clear all button if toppings exist
+                  if (_placedToppings.isNotEmpty)
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _placedToppings.clear();
+                          });
+                        },
+                        icon: const Icon(Icons.clear_all, size: 18),
+                        label: Text(
+                          'Clear All',
+                          style: GoogleFonts.ubuntu(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.pink700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
-          // Placed toppings
-          ...(_placedToppings.map((topping) {
-            final toppingImagePath = _getImageAssetPath('toppings/toppings/${topping.toppingName.toLowerCase()}.png');
-            return Positioned(
-              left: topping.position.dx - (topping.size / 2),
-              top: topping.position.dy - (topping.size / 2),
-              child: GestureDetector(
-                onTap: () {
-                  // Remove topping on tap
-                  setState(() {
-                    _placedToppings.remove(topping);
-                  });
-                },
-                child: Image.asset(
-                  toppingImagePath,
-                  width: topping.size,
-                  height: topping.size,
-                  errorBuilder: (_, __, ___) => Icon(
-                    Icons.error,
-                    size: topping.size,
-                    color: Colors.red,
-                  ),
-                ),
-              ),
-            );
-          }).toList()),
-          // Instruction text if no toppings yet
-          if (_placedToppings.isEmpty && widget.selectedToppings != null && widget.selectedToppings!.isNotEmpty)
-            Positioned(
-              bottom: 20,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                margin: const EdgeInsets.symmetric(horizontal: 40),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Tap anywhere to add ${widget.selectedToppings!.join(", ")}\nTap on topping to remove',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.ubuntu(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          // Clear all button if toppings exist
-          if (_placedToppings.isNotEmpty)
-            Positioned(
-              top: 16,
-              right: 16,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _placedToppings.clear();
-                  });
-                },
-                icon: const Icon(Icons.clear_all, size: 18),
-                label: Text(
-                  'Clear All',
-                  style: GoogleFonts.ubuntu(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.pink700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
