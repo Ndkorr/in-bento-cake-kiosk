@@ -1,11 +1,8 @@
-import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
-import 'dart:ui' show PlatformDispatcher;
 
 enum CakeViewMode {
   fullView,
@@ -35,15 +32,11 @@ class CakeCustomizerScreen extends StatefulWidget {
 }
 
 class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
-  bool _modelViewerHasError = false;
   CakeViewMode _currentView = CakeViewMode.fullView;
   double _summaryHeight = 0.25;
   List<ToppingPlacement> _placedToppings = [];
   String? _selectedToppingToPlace;
   GlobalKey _cakeImageKey = GlobalKey();
-  bool _eraseMode = false;
-  bool _showHint = false;
-  Timer? _hintTimer;
 
   final Map<String, String> _flavorAbbreviations = {
     'Vanilla': 'V',
@@ -86,7 +79,6 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
         widget.selectedFillings!.isEmpty) {
       return 'VVV.glb';
     }
-    
 
     final parts = <String>[];
     final layer1 = widget.selectedLayers![0];
@@ -117,7 +109,8 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
         break;
       case CakeViewMode.toppingsView:
         // Return the top view image path for toppings (for Image.asset)
-        final frostingName = widget.selectedFrosting?.toLowerCase() ?? 'vanilla';
+        final frostingName =
+            widget.selectedFrosting?.toLowerCase() ?? 'vanilla';
         return _getImageAssetPath('toppings/$shape/${frostingName}top.png');
       case CakeViewMode.separateView:
         path = 'layer_view/$shape/${numLayers}layers/seperate/$fileName';
@@ -176,61 +169,14 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
     }
   }
 
-  void _startTemporaryHint([Duration duration = const Duration(seconds: 4)]) {
-    _hintTimer?.cancel();
-    setState(() {
-      _showHint = true;
-    });
-    _hintTimer = Timer(duration, () {
-      if (mounted) {
-        setState(() {
-          _showHint = false;
-        });
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _hintTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    // Catch uncaught framework errors and mark that the model viewer failed so
-    // we can show a safe fallback (prevents repeated grey overlays on web).
-    FlutterError.onError = (details) {
-      debugPrint('FlutterError caught in CakeCustomizerScreen: ${details.exception}');
-      // Preserve default behavior
-      FlutterError.presentError(details);
-      if (mounted) {
-        setState(() => _modelViewerHasError = true);
-      }
-    };
-
-    // PlatformDispatcher catches errors from the engine side (including JS interop on web)
-    try {
-      // ignore: deprecated_member_use
-      PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
-        debugPrint('PlatformDispatcher error in CakeCustomizerScreen: $error');
-        if (mounted) setState(() => _modelViewerHasError = true);
-        // Return true to indicate we've handled the error and avoid default logging.
-        return true;
-      };
-    } catch (_) {
-      // Some older Flutter SDKs may not support setting onError; ignore safely.
-    }
-  }
-
   Widget _buildToppingsView() {
     final toppingAssetPath = _getModelPath();
-    
+
     return Column(
       children: [
         // Topping selection buttons
-        if (widget.selectedToppings != null && widget.selectedToppings!.isNotEmpty)
+        if (widget.selectedToppings != null &&
+            widget.selectedToppings!.isNotEmpty)
           Container(
             height: 80,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -240,19 +186,16 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
               itemBuilder: (context, index) {
                 final topping = widget.selectedToppings![index];
                 final isSelected = _selectedToppingToPlace == topping;
-                final toppingAssetName = _toppingAssetNames[topping] ?? topping.toLowerCase();
-                
+                final toppingAssetName =
+                    _toppingAssetNames[topping] ?? topping.toLowerCase();
+
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: GestureDetector(
                     onTap: () {
                       setState(() {
-                        _eraseMode = false; // switch off eraser if a topping is chosen
                         _selectedToppingToPlace = isSelected ? null : topping;
                       });
-                      if (_selectedToppingToPlace != null) {
-                        _startTemporaryHint();
-                      }
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
@@ -278,13 +221,15 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Image.asset(
-                            _getImageAssetPath('toppings/toppings/$toppingAssetName.png'),
+                            _getImageAssetPath(
+                                'toppings/toppings/$toppingAssetName.png'),
                             width: 32,
                             height: 32,
                             errorBuilder: (_, __, ___) => Icon(
                               Icons.cake,
                               size: 32,
-                              color: isSelected ? Colors.white : AppColors.pink700,
+                              color:
+                                  isSelected ? Colors.white : AppColors.pink700,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -293,7 +238,8 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                             style: GoogleFonts.ubuntu(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: isSelected ? Colors.white : AppColors.pink700,
+                              color:
+                                  isSelected ? Colors.white : AppColors.pink700,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -306,184 +252,114 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
             ),
           ),
         // Cake with toppings
-          Expanded(
+        Expanded(
           child: GestureDetector(
             onTapDown: (details) {
-              try {
-                // Get the render box of the cake image
-                final RenderBox? cakeBox = _cakeImageKey.currentContext?.findRenderObject() as RenderBox?;
-                if (cakeBox == null) return;
+              // Only allow adding if a topping is selected
+              if (_selectedToppingToPlace == null) {
+                return;
+              }
 
-                // Get the tap position relative to the cake image
-                final localPosition = cakeBox.globalToLocal(details.globalPosition);
-                final cakeSize = cakeBox.size;
+              // Get the render box of the cake image
+              final RenderBox? cakeBox = _cakeImageKey.currentContext
+                  ?.findRenderObject() as RenderBox?;
+              if (cakeBox == null) return;
 
-              // Check if tap is within the canvas bounds
-              if (localPosition.dx < 0 || localPosition.dx > cakeSize.width ||
-                  localPosition.dy < 0 || localPosition.dy > cakeSize.height) {
+              // Get the tap position relative to the cake image
+              final localPosition =
+                  cakeBox.globalToLocal(details.globalPosition);
+              final cakeSize = cakeBox.size;
+
+              // Check if tap is within the cake bounds
+              if (localPosition.dx < 0 ||
+                  localPosition.dx > cakeSize.width ||
+                  localPosition.dy < 0 ||
+                  localPosition.dy > cakeSize.height) {
                 return;
               }
 
               // Calculate center point
               final centerX = cakeSize.width / 2;
               final centerY = cakeSize.height / 2;
-              final distanceFromCenter = ((localPosition.dx - centerX) * (localPosition.dx - centerX) +
+              final distanceFromCenter = ((localPosition.dx - centerX) *
+                      (localPosition.dx - centerX) +
                   (localPosition.dy - centerY) * (localPosition.dy - centerY));
-              
-              // Only allow actions within a circular-ish cake area (based on min dimension)
-              final minDim = math.min(cakeSize.width, cakeSize.height);
-              final maxRadius = (minDim * 0.4) * (minDim * 0.4);
+
+              // Only allow placement within a circular/heart area (adjust radius as needed)
+              final maxRadius = (cakeSize.width * 0.4) * (cakeSize.width * 0.4);
               if (distanceFromCenter > maxRadius) {
                 return;
               }
 
-                if (_eraseMode) {
-                // Remove the nearest topping under a small radius
-                final threshold = minDim * 0.08; // touch radius
-                int? removeIndex;
-                double bestDist = double.infinity;
-                for (int i = 0; i < _placedToppings.length; i++) {
-                  final tp = _placedToppings[i];
-                  final pxPos = tp.pixelPosition(cakeSize);
-                  final dx = pxPos.dx - localPosition.dx;
-                  final dy = pxPos.dy - localPosition.dy;
-                  final d = math.sqrt(dx * dx + dy * dy);
-                  if (d < threshold && d < bestDist) {
-                    bestDist = d;
-                    removeIndex = i;
-                  }
-                }
-                if (removeIndex != null) {
-                  setState(() {
-                    _placedToppings.removeAt(removeIndex!);
-                  });
-                }
-                  return;
-                }
-
-                // Only allow adding if a topping is selected
-                if (_selectedToppingToPlace == null) {
-                  return;
-                }
-
-              // Store as normalized coordinates for stable placement across resizes
-              final xPercent = (localPosition.dx / cakeSize.width).clamp(0.0, 1.0);
-              final yPercent = (localPosition.dy / cakeSize.height).clamp(0.0, 1.0);
-                setState(() {
-                  _placedToppings.add(
-                    ToppingPlacement(
-                      toppingName: _selectedToppingToPlace!,
-                      xPercent: xPercent,
-                      yPercent: yPercent,
-                      sizeFactor: 0.12, // relative to min(canvas.width, canvas.height)
-                    ),
-                  );
-                });
-              } catch (e, st) {
-                // Defensive: log and show a minimal UI hint to help debugging without breaking rendering
-                debugPrint('Error placing topping: $e\n$st');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Could not place topping: $e')),
-                  );
-                }
-              }
+              setState(() {
+                _placedToppings.add(
+                  ToppingPlacement(
+                    toppingName: _selectedToppingToPlace!,
+                    position: localPosition,
+                  ),
+                );
+              });
             },
             child: Container(
-              key: _cakeImageKey,
               color: Colors.transparent,
               child: Stack(
                 children: [
                   // Background cake top view
                   Positioned.fill(
                     child: Image.asset(
+                      key: _cakeImageKey,
                       toppingAssetPath,
                       fit: BoxFit.contain,
-                      alignment: Alignment.center,
-                      errorBuilder: (_, __, ___) => const Center(
-                        child: Icon(Icons.cake, size: 100, color: Colors.grey),
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child:
+                              Icon(Icons.cake, size: 100, color: Colors.grey),
+                        ),
                       ),
                     ),
                   ),
                   // Placed toppings
-                  ...(() {
-                    try {
-                      return _placedToppings.map((topping) {
-                        return LayoutBuilder(
-                          builder: (context, constraints) {
-                            final canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
-                            final pos = topping.pixelPosition(canvasSize);
-                            final pSize = topping.pixelSize(canvasSize);
-                            final toppingAssetName = _toppingAssetNames[topping.toppingName] ?? topping.toppingName.toLowerCase();
-                            final toppingImagePath = _getImageAssetPath('toppings/toppings/$toppingAssetName.png');
-                            return Positioned(
-                              left: pos.dx - (pSize / 2),
-                              top: pos.dy - (pSize / 2),
-                              child: IgnorePointer(
-                                child: Image.asset(
-                                  toppingImagePath,
-                                  width: pSize,
-                                  height: pSize,
-                                  errorBuilder: (_, __, ___) => Icon(
-                                    Icons.error,
-                                    size: pSize,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      }).toList();
-                    } catch (e, st) {
-                      debugPrint('Error building toppings widgets: $e\n$st');
-                      // Fallback: return an empty list so the Stack still renders
-                      return <Widget>[];
-                    }
-                  }()),
-                  // Erase toggle button
-                  if (widget.selectedToppings != null && widget.selectedToppings!.isNotEmpty)
-                    Positioned(
-                      top: 16,
-                      left: 16,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
+                  ...(_placedToppings.map((topping) {
+                    final toppingAssetName =
+                        _toppingAssetNames[topping.toppingName] ??
+                            topping.toppingName.toLowerCase();
+                    final toppingImagePath = _getImageAssetPath(
+                        'toppings/toppings/$toppingAssetName.png');
+                    return Positioned(
+                      left: topping.position.dx - (topping.size / 2),
+                      top: topping.position.dy - (topping.size / 2),
+                      child: GestureDetector(
+                        onTap: () {
+                          // Remove topping on tap
                           setState(() {
-                            _eraseMode = !_eraseMode;
-                            if (_eraseMode) {
-                              _selectedToppingToPlace = null;
-                            }
+                            _placedToppings.remove(topping);
                           });
-                          _startTemporaryHint();
                         },
-                        icon: Icon(
-                          Icons.delete,
-                          size: 18,
-                          color: _eraseMode ? Colors.white : AppColors.pink700,
-                        ),
-                        label: Text(
-                          _eraseMode ? 'Erase: ON' : 'Erase',
-                          style: GoogleFonts.ubuntu(
-                            fontWeight: FontWeight.w700,
-                            color: _eraseMode ? Colors.white : AppColors.pink700,
+                        child: Image.asset(
+                          toppingImagePath,
+                          width: topping.size,
+                          height: topping.size,
+                          errorBuilder: (_, __, ___) => Icon(
+                            Icons.error,
+                            size: topping.size,
+                            color: Colors.red,
                           ),
                         ),
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: _eraseMode ? AppColors.pink700 : Colors.white,
-                          side: const BorderSide(color: AppColors.pink700, width: 2),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
                       ),
-                    ),
+                    );
+                  }).toList()),
                   // Instruction text
-                  if (_selectedToppingToPlace == null && !_eraseMode && widget.selectedToppings != null && widget.selectedToppings!.isNotEmpty)
+                  if (_selectedToppingToPlace == null &&
+                      widget.selectedToppings != null &&
+                      widget.selectedToppings!.isNotEmpty)
                     Positioned(
                       bottom: 20,
                       left: 0,
                       right: 0,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
                         margin: const EdgeInsets.symmetric(horizontal: 40),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.7),
@@ -500,22 +376,21 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                         ),
                       ),
                     ),
-                  if ((_selectedToppingToPlace != null || _eraseMode) && _showHint)
+                  if (_selectedToppingToPlace != null)
                     Positioned(
                       bottom: 20,
                       left: 0,
                       right: 0,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
                         margin: const EdgeInsets.symmetric(horizontal: 40),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.7),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          _eraseMode
-                              ? 'Tap on cake to erase toppings'
-                              : 'Tap on cake to place $_selectedToppingToPlace',
+                          'Tap on cake to place $_selectedToppingToPlace\nTap topping to remove',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.ubuntu(
                             color: Colors.white,
@@ -546,7 +421,8 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.pink700,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -581,12 +457,6 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
     final summaryText = _buildSummaryText();
     final screenHeight = MediaQuery.of(context).size.height;
 
-    String _getTopImagePath() {
-      final frostingName = widget.selectedFrosting?.toLowerCase() ?? 'vanilla';
-      final shape = widget.cakeShape == 'round' ? 'roundshaped' : 'heartshaped';
-      return _getImageAssetPath('toppings/$shape/${frostingName}top.png');
-    }
-
     return Scaffold(
       backgroundColor: AppColors.cream200,
       appBar: AppBar(
@@ -615,8 +485,6 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                     onTap: () {
                       setState(() {
                         _currentView = CakeViewMode.fullView;
-                        _eraseMode = false;
-                        _selectedToppingToPlace = null;
                       });
                     },
                   ),
@@ -635,7 +503,8 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                   ),
                 ),
                 // Only show Separate and Stacked for 2-layer cakes
-                if (widget.selectedLayers != null && widget.selectedLayers!.length == 2) ...[
+                if (widget.selectedLayers != null &&
+                    widget.selectedLayers!.length == 2) ...[
                   const SizedBox(width: 8),
                   Expanded(
                     child: _ViewModeButton(
@@ -645,8 +514,6 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                       onTap: () {
                         setState(() {
                           _currentView = CakeViewMode.separateView;
-                          _eraseMode = false;
-                          _selectedToppingToPlace = null;
                         });
                       },
                     ),
@@ -660,8 +527,6 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                       onTap: () {
                         setState(() {
                           _currentView = CakeViewMode.stackedView;
-                          _eraseMode = false;
-                          _selectedToppingToPlace = null;
                         });
                       },
                     ),
@@ -688,25 +553,18 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                 borderRadius: BorderRadius.circular(24),
                 child: _currentView == CakeViewMode.toppingsView
                     ? _buildToppingsView()
-                    : (_modelViewerHasError && kIsWeb)
-                        ? Image.asset(
-                            _getTopImagePath(),
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Center(
-                              child: Icon(Icons.cake, size: 100, color: Colors.grey),
-                            ),
-                          )
-                        : ModelViewer(
-                            key: ValueKey(modelPath),
-                            backgroundColor: const Color(0xFFEEEEEE),
-                            src: modelPath,
-                            alt: 'A 3D model of a customized cake - ${_getViewModeLabel()}',
-                            ar: false,
-                            autoRotate: true,
-                            cameraControls: true,
-                            disableZoom: false,
-                            loading: Loading.eager,
-                          ),
+                    : ModelViewer(
+                        key: ValueKey(modelPath),
+                        backgroundColor: const Color(0xFFEEEEEE),
+                        src: modelPath,
+                        alt:
+                            'A 3D model of a customized cake - ${_getViewModeLabel()}',
+                        ar: false,
+                        autoRotate: true,
+                        cameraControls: true,
+                        disableZoom: false,
+                        loading: Loading.eager,
+                      ),
               ),
             ),
           ),
@@ -912,23 +770,12 @@ class _ViewModeButton extends StatelessWidget {
 // Class to store topping placement data
 class ToppingPlacement {
   final String toppingName;
-  // Normalized position (0..1) relative to canvas width/height
-  final double xPercent;
-  final double yPercent;
-  // Relative size to min(canvas.width, canvas.height)
-  final double sizeFactor;
+  final Offset position;
+  final double size;
 
   ToppingPlacement({
     required this.toppingName,
-    required this.xPercent,
-    required this.yPercent,
-    this.sizeFactor = 0.12,
+    required this.position,
+    this.size = 50,
   });
-
-  Offset pixelPosition(Size canvas) => Offset(
-        xPercent * canvas.width,
-        yPercent * canvas.height,
-      );
-
-  double pixelSize(Size canvas) => sizeFactor * math.min(canvas.width, canvas.height);
 }
