@@ -577,40 +577,41 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
       children: [
         // Cake area (fixed height)
         Align(
-          alignment: Alignment.topCenter,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            height: screenHeight * 0.55, // Fixed height for cake area
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(25),
-                  blurRadius: 20,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: _currentView == CakeViewMode.toppingsView
-                  ? _buildToppingsView()
-                  : ModelViewer(
-                      key: ValueKey(modelPath),
-                      backgroundColor: const Color(0xFFEEEEEE),
-                      src: modelPath,
-                      alt:
-                          'A 3D model of a customized cake - ${_getViewModeLabel()}',
-                      ar: false,
-                      autoRotate: true,
-                      cameraControls: true,
-                      disableZoom: false,
-                      loading: Loading.eager,
+              alignment: Alignment.topCenter,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(
+                    16, 90, 16, 16), // <-- Increased top margin
+                height: screenHeight * 0.55,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
                     ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: _currentView == CakeViewMode.toppingsView
+                      ? _buildToppingsView()
+                      : ModelViewer(
+                          key: ValueKey(modelPath),
+                          backgroundColor: const Color(0xFFEEEEEE),
+                          src: modelPath,
+                          alt:
+                              'A 3D model of a customized cake - ${_getViewModeLabel()}',
+                          ar: false,
+                          autoRotate: true,
+                          cameraControls: true,
+                          disableZoom: false,
+                          loading: Loading.eager,
+                        ),
+                ),
+              ),
             ),
-          ),
-        ),
         // View mode buttons (keep at top)
         Positioned(
           top: 0,
