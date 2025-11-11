@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import 'dart:ui' show PlatformDispatcher;
 
 enum CakeViewMode {
   fullView,
@@ -34,6 +35,7 @@ class CakeCustomizerScreen extends StatefulWidget {
 }
 
 class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
+  bool _modelViewerHasError = false;
   CakeViewMode _currentView = CakeViewMode.fullView;
   double _summaryHeight = 0.25;
   List<ToppingPlacement> _placedToppings = [];
@@ -192,6 +194,34 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   void dispose() {
     _hintTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Catch uncaught framework errors and mark that the model viewer failed so
+    // we can show a safe fallback (prevents repeated grey overlays on web).
+    FlutterError.onError = (details) {
+      debugPrint('FlutterError caught in CakeCustomizerScreen: ${details.exception}');
+      // Preserve default behavior
+      FlutterError.presentError(details);
+      if (mounted) {
+        setState(() => _modelViewerHasError = true);
+      }
+    };
+
+    // PlatformDispatcher catches errors from the engine side (including JS interop on web)
+    try {
+      // ignore: deprecated_member_use
+      PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+        debugPrint('PlatformDispatcher error in CakeCustomizerScreen: $error');
+        if (mounted) setState(() => _modelViewerHasError = true);
+        // Return true to indicate we've handled the error and avoid default logging.
+        return true;
+      };
+    } catch (_) {
+      // Some older Flutter SDKs may not support setting onError; ignore safely.
+    }
   }
 
   Widget _buildToppingsView() {
@@ -551,6 +581,12 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
     final summaryText = _buildSummaryText();
     final screenHeight = MediaQuery.of(context).size.height;
 
+    String _getTopImagePath() {
+      final frostingName = widget.selectedFrosting?.toLowerCase() ?? 'vanilla';
+      final shape = widget.cakeShape == 'round' ? 'roundshaped' : 'heartshaped';
+      return _getImageAssetPath('toppings/$shape/${frostingName}top.png');
+    }
+
     return Scaffold(
       backgroundColor: AppColors.cream200,
       appBar: AppBar(
@@ -652,18 +688,25 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                 borderRadius: BorderRadius.circular(24),
                 child: _currentView == CakeViewMode.toppingsView
                     ? _buildToppingsView()
-                    : ModelViewer(
-                        key: ValueKey(modelPath),
-                        backgroundColor: const Color(0xFFEEEEEE),
-                        src: modelPath,
-                        alt:
-                            'A 3D model of a customized cake - ${_getViewModeLabel()}',
-                        ar: false,
-                        autoRotate: true,
-                        cameraControls: true,
-                        disableZoom: false,
-                        loading: Loading.eager,
-                      ),
+                    : (_modelViewerHasError && kIsWeb)
+                        ? Image.asset(
+                            _getTopImagePath(),
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(Icons.cake, size: 100, color: Colors.grey),
+                            ),
+                          )
+                        : ModelViewer(
+                            key: ValueKey(modelPath),
+                            backgroundColor: const Color(0xFFEEEEEE),
+                            src: modelPath,
+                            alt: 'A 3D model of a customized cake - ${_getViewModeLabel()}',
+                            ar: false,
+                            autoRotate: true,
+                            cameraControls: true,
+                            disableZoom: false,
+                            loading: Loading.eager,
+                          ),
               ),
             ),
           ),
