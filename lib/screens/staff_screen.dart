@@ -131,31 +131,34 @@ class _HoverPieCardState extends State<_HoverPieCard> {
         child: SizedBox(
           width: 240,
           height: 260,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: _hovering
-                ? Column(
-                    key: const ValueKey('show'),
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        height: 180,
-                        width: 160,
-                        child: widget.pie,
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _hovering
+                    ? Padding(
+                        key: const ValueKey('title'),
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          widget.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
                         ),
+                      )
+                    : const SizedBox(
+                        key: ValueKey('empty'),
+                        height: 32, // Reserve space for smooth transition
                       ),
-                    ],
-                  )
-                : Container(
-                    key: const ValueKey('hide'),
-                  ),
+              ),
+              SizedBox(
+                height: 180,
+                width: 160,
+                child: widget.pie,
+              ),
+            ],
           ),
         ),
       ),
