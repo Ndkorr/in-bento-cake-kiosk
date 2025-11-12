@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'screens/welcome_screen.dart';
 import 'theme/app_colors.dart';
 import 'utils/idle_detector.dart';
+import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +59,7 @@ class KioskHome extends StatefulWidget {
 
 class _KioskHomeState extends State<KioskHome> {
   Key _welcomeKey = UniqueKey();
+  bool _loggedIn = false;
 
   void resetWelcomeScreen() {
     setState(() {
@@ -65,9 +67,41 @@ class _KioskHomeState extends State<KioskHome> {
     });
   }
 
+  void _handleContinueKiosk() {
+    setState(() {
+      _loggedIn = true;
+    });
+  }
+
+  void _handleStaffLogin(String password) {
+    // TODO: Navigate to staff screen
+    // For now, just show a dialog
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Staff Login'),
+        content: const Text('Staff login successful! (Implement navigation)'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Optionally, set _loggedIn = true to go to kiosk after staff login
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // The IdleDetector is no longer here
+    if (!_loggedIn) {
+      return LoginScreen(
+        onContinueKiosk: _handleContinueKiosk,
+        onStaffLogin: _handleStaffLogin,
+      );
+    }
     return WelcomeScreen(key: _welcomeKey);
   }
 }
