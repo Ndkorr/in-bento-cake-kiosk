@@ -129,34 +129,11 @@ class _HoverPieCardState extends State<_HoverPieCard> {
       clipBehavior: Clip.none,
       alignment: Alignment.bottomCenter,
       children: [
-        // The card with the pie chart
-        MouseRegion(
-          onEnter: (_) => setState(() => _hovering = true),
-          onExit: (_) => setState(() => _hovering = false),
-          child: Card(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            elevation: 6,
-            child: SizedBox(
-              width: cardWidth,
-              height: cardHeight,
-              child: Center(
-                child: SizedBox(
-                  height: 180,
-                  width: 160,
-                  child: widget.pie,
-                ),
-              ),
-            ),
-          ),
-        ),
-        // The animated title background, more integrated under the card
+        // The animated title background, placed first (behind the card)
         AnimatedPositioned(
           duration: const Duration(milliseconds: 200),
           curve: Curves.ease,
-          bottom: _hovering ? -28 : -60, // Move up so the card overlaps more
+          bottom: _hovering ? -28 : -60,
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 200),
             opacity: _hovering ? 1.0 : 0.0,
@@ -181,6 +158,29 @@ class _HoverPieCardState extends State<_HoverPieCard> {
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
                   color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+        // The card with the pie chart (on top)
+        MouseRegion(
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          child: Card(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            elevation: 6,
+            child: SizedBox(
+              width: cardWidth,
+              height: cardHeight,
+              child: Center(
+                child: SizedBox(
+                  height: 180,
+                  width: 160,
+                  child: widget.pie,
                 ),
               ),
             ),
