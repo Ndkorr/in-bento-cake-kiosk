@@ -121,45 +121,47 @@ class _HoverPieCardState extends State<_HoverPieCard> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: Card(
-        color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        elevation: 6,
-        child: SizedBox(
-          width: 240,
-          height: 260,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                height: 180,
-                width: 160,
-                child: widget.pie,
+    return Column(
+      children: [
+        MouseRegion(
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          child: Card(
+            color: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            elevation: 6,
+            child: SizedBox(
+              width: 240,
+              height: 260,
+              child: Center(
+                child: SizedBox(
+                  height: 180,
+                  width: 160,
+                  child: widget.pie,
+                ),
               ),
-              const SizedBox(height: 12),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: _hovering
-                    ? Text(
-                        widget.title,
-                        key: const ValueKey('title'),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
-                        ),
-                      )
-                    : const SizedBox(
-                        key: ValueKey('empty'),
-                        height: 24, // Reserve space for smooth transition
-                      ),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+        const SizedBox(height: 8),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: _hovering
+              ? Text(
+                  widget.title,
+                  key: const ValueKey('title'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                )
+              : const SizedBox(
+                  key: ValueKey('empty'),
+                  height: 24, // Reserve space for smooth transition
+                ),
+        ),
+      ],
     );
   }
 }
