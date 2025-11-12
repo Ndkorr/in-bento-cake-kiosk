@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../theme/app_colors.dart';
+import 'welcome_screen.dart';
 
 class StaffScreen extends StatelessWidget {
   const StaffScreen({super.key});
@@ -16,76 +17,90 @@ class StaffScreen extends StatelessWidget {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            // Pie charts row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      body: Stack(
+        children: [
+          const TiledIcons(), // Moving icons background
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
               children: [
-                _PieCard(
-                  title: 'Total Sales',
-                  pie: _SamplePieChart(
-                    sections: [
-                      PieChartSectionData(
-                        color: AppColors.pink500,
-                        value: 60,
-                        title: 'Cakes',
-                        radius: 48,
-                        titleStyle: const TextStyle(fontSize: 12, color: Colors.white),
+                // Pie charts row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _PieCard(
+                      title: 'Total Sales',
+                      pie: _SamplePieChart(
+                        sections: [
+                          PieChartSectionData(
+                            color: AppColors.pink500,
+                            value: 60,
+                            title: 'Cakes',
+                            radius: 48,
+                            titleStyle: const TextStyle(
+                                fontSize: 12, color: Colors.white),
+                          ),
+                          PieChartSectionData(
+                            color: AppColors.salmon400,
+                            value: 40,
+                            title: 'Drinks',
+                            radius: 48,
+                            titleStyle: const TextStyle(
+                                fontSize: 12, color: Colors.white),
+                          ),
+                        ],
                       ),
-                      PieChartSectionData(
-                        color: AppColors.salmon400,
-                        value: 40,
-                        title: 'Drinks',
-                        radius: 48,
-                        titleStyle: const TextStyle(fontSize: 12, color: Colors.white),
+                    ),
+                    _PieCard(
+                      title: 'Ingredients Used',
+                      pie: _SamplePieChart(
+                        sections: [
+                          PieChartSectionData(
+                            color: AppColors.peach300,
+                            value: 50,
+                            title: 'Flour',
+                            radius: 48,
+                            titleStyle: const TextStyle(
+                                fontSize: 12, color: Colors.white),
+                          ),
+                          PieChartSectionData(
+                            color: AppColors.pink700,
+                            value: 30,
+                            title: 'Eggs',
+                            radius: 48,
+                            titleStyle: const TextStyle(
+                                fontSize: 12, color: Colors.white),
+                          ),
+                          PieChartSectionData(
+                            color: AppColors.salmon400,
+                            value: 20,
+                            title: 'Sugar',
+                            radius: 48,
+                            titleStyle: const TextStyle(
+                                fontSize: 12, color: Colors.white),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                _PieCard(
-                  title: 'Ingredients Used',
-                  pie: _SamplePieChart(
-                    sections: [
-                      PieChartSectionData(
-                        color: AppColors.peach300,
-                        value: 50,
-                        title: 'Flour',
-                        radius: 48,
-                        titleStyle: const TextStyle(fontSize: 12, color: Colors.white),
-                      ),
-                      PieChartSectionData(
-                        color: AppColors.pink700,
-                        value: 30,
-                        title: 'Eggs',
-                        radius: 48,
-                        titleStyle: const TextStyle(fontSize: 12, color: Colors.white),
-                      ),
-                      PieChartSectionData(
-                        color: AppColors.salmon400,
-                        value: 20,
-                        title: 'Sugar',
-                        radius: 48,
-                        titleStyle: const TextStyle(fontSize: 12, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
+                const SizedBox(height: 32),
+                // Buttons
+                _StaffButton(
+                    label: 'Orders', icon: Icons.receipt_long, onTap: () {}),
+                const SizedBox(height: 16),
+                _StaffButton(
+                    label: 'Edit kiosk', icon: Icons.edit, onTap: () {}),
+                const SizedBox(height: 16),
+                _StaffButton(
+                    label: 'Manage users', icon: Icons.people, onTap: () {}),
+                const SizedBox(height: 16),
+                _StaffButton(
+                    label: 'About', icon: Icons.info_outline, onTap: () {}),
               ],
             ),
-            const SizedBox(height: 32),
-            // Buttons
-            _StaffButton(label: 'Orders', icon: Icons.receipt_long, onTap: () {}),
-            const SizedBox(height: 16),
-            _StaffButton(label: 'Edit kiosk', icon: Icons.edit, onTap: () {}),
-            const SizedBox(height: 16),
-            _StaffButton(label: 'Manage users', icon: Icons.people, onTap: () {}),
-            const SizedBox(height: 16),
-            _StaffButton(label: 'About', icon: Icons.info_outline, onTap: () {}),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -101,17 +116,27 @@ class _PieCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 6,
       child: SizedBox(
-        width: 150,
-        height: 180,
+        width: 220, // Increased width
+        height: 260, // Increased height
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(height: 100, width: 100, child: pie),
-            const SizedBox(height: 12),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(
+              height: 160, // Increased pie chart size
+              width: 160,
+              child: pie,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20, // Larger title
+              ),
+            ),
           ],
         ),
       ),
