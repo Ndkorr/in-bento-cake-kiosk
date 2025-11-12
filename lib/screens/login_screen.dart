@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onContinueKiosk;
@@ -22,7 +23,6 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleStaffLogin() {
     final password = _controller.text.trim();
     if (password == 'staff123') {
-      // Replace with your real password logic
       widget.onStaffLogin(password);
     } else {
       setState(() => _error = 'Incorrect password');
@@ -31,69 +31,147 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.cream200,
       body: Center(
         child: Card(
-          elevation: 8,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          elevation: 10,
+          color: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(32),
+          ),
           child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: _showStaffLogin
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Staff Login',
-                          style: TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _controller,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          errorText: _error,
+            padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 40),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              child: _showStaffLogin
+                  ? Column(
+                      key: const ValueKey('staff'),
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Staff Login',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: AppColors.pink700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        onSubmitted: (_) => _handleStaffLogin(),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          ElevatedButton(
-                            onPressed: _handleStaffLogin,
-                            child: const Text('Login'),
+                        const SizedBox(height: 24),
+                        TextField(
+                          controller: _controller,
+                          obscureText: true,
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            labelStyle: TextStyle(color: AppColors.pink500),
+                            errorText: _error,
+                            filled: true,
+                            fillColor: AppColors.cream200.withOpacity(0.2),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: BorderSide(color: AppColors.peach300),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: BorderSide(
+                                  color: AppColors.pink500, width: 2),
+                            ),
                           ),
-                          const SizedBox(width: 16),
-                          TextButton(
-                            onPressed: () => setState(() {
-                              _showStaffLogin = false;
-                              _error = null;
-                            }),
-                            child: const Text('Back'),
+                          style: TextStyle(color: AppColors.pink700),
+                          onSubmitted: (_) => _handleStaffLogin(),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.pink500,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                ),
+                                onPressed: _handleStaffLogin,
+                                child: const Text('Login'),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.pink700,
+                                  side: BorderSide(color: AppColors.peach300),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                ),
+                                onPressed: () => setState(() {
+                                  _showStaffLogin = false;
+                                  _error = null;
+                                  _controller.clear();
+                                }),
+                                child: const Text('Back'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Column(
+                      key: const ValueKey('kiosk'),
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Welcome to Inbento Kiosk',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: AppColors.pink700,
+                            fontWeight: FontWeight.bold,
                           ),
-                        ],
-                      ),
-                    ],
-                  )
-                : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Welcome to Inbento Kiosk',
-                          style: TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: widget.onContinueKiosk,
-                        child: const Text('Continue to Kiosk'),
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton(
-                        onPressed: () => setState(() => _showStaffLogin = true),
-                        child: const Text('Staff Login'),
-                      ),
-                    ],
-                  ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 32),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.pink500,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            textStyle: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: widget.onContinueKiosk,
+                          child: const Text('Continue to Kiosk'),
+                        ),
+                        const SizedBox(height: 20),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.pink700,
+                            side: BorderSide(color: AppColors.peach300),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            textStyle: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: () =>
+                              setState(() => _showStaffLogin = true),
+                          child: const Text('Staff Login'),
+                        ),
+                      ],
+                    ),
+            ),
           ),
         ),
       ),
