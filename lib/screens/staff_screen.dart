@@ -24,11 +24,11 @@ class StaffScreen extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [
-                // Pie charts row
+                // Pie charts row with hover
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _PieCard(
+                    _HoverPieCard(
                       title: 'Total Sales',
                       pie: _SamplePieChart(
                         sections: [
@@ -51,7 +51,7 @@ class StaffScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    _PieCard(
+                    _HoverPieCard(
                       title: 'Ingredients Used',
                       pie: _SamplePieChart(
                         sections: [
@@ -106,6 +106,63 @@ class StaffScreen extends StatelessWidget {
   }
 }
 
+class _HoverPieCard extends StatefulWidget {
+  final String title;
+  final Widget pie;
+
+  const _HoverPieCard({required this.title, required this.pie});
+
+  @override
+  State<_HoverPieCard> createState() => _HoverPieCardState();
+}
+
+class _HoverPieCardState extends State<_HoverPieCard> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Card(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 6,
+        child: SizedBox(
+          width: 240,
+          height: 260,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: _hovering
+                ? Column(
+                    key: const ValueKey('show'),
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        height: 180,
+                        width: 160,
+                        child: widget.pie,
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        widget.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                        ),
+                      ),
+                    ],
+                  )
+                : Container(
+                    key: const ValueKey('hide'),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PieCard extends StatelessWidget {
   final String title;
   final Widget pie;
@@ -119,13 +176,13 @@ class _PieCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       elevation: 6,
       child: SizedBox(
-        width: 220, // Increased width
+        width: 240, // Increased width
         height: 260, // Increased height
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(
-              height: 160, // Increased pie chart size
+              height: 180, // Increased pie chart size
               width: 160,
               child: pie,
             ),
