@@ -17,15 +17,18 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _showStaffLogin = false;
-  final TextEditingController _controller = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   String? _error;
 
   void _handleStaffLogin() {
-    final password = _controller.text.trim();
-    if (password == 'staff123') {
-      widget.onStaffLogin(password);
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+    // Example: username = 'staff', password = 'staff123'
+    if (username == 'staff' && password == 'staff123') {
+      widget.onStaffLogin(username);
     } else {
-      setState(() => _error = 'Incorrect password');
+      setState(() => _error = 'Incorrect username or password');
     }
   }
 
@@ -62,7 +65,28 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 24),
                         TextField(
-                          controller: _controller,
+                          controller: _usernameController,
+                          decoration: InputDecoration(
+                            labelText: 'Username',
+                            labelStyle: TextStyle(color: AppColors.pink500),
+                            filled: true,
+                            fillColor: AppColors.cream200.withOpacity(0.2),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: BorderSide(color: AppColors.peach300),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: BorderSide(
+                                  color: AppColors.pink500, width: 2),
+                            ),
+                          ),
+                          style: TextStyle(color: AppColors.pink700),
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _passwordController,
                           obscureText: true,
                           decoration: InputDecoration(
                             labelText: 'Password',
@@ -116,7 +140,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 onPressed: () => setState(() {
                                   _showStaffLogin = false;
                                   _error = null;
-                                  _controller.clear();
+                                  _usernameController.clear();
+                                  _passwordController.clear();
                                 }),
                                 child: const Text('Back'),
                               ),
