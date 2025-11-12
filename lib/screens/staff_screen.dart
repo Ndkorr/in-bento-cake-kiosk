@@ -121,21 +121,25 @@ class _HoverPieCardState extends State<_HoverPieCard> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          Card(
+    // Card size constants
+    const double cardWidth = 240;
+    const double cardHeight = 260;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        MouseRegion(
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          child: Card(
             color: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
             ),
             elevation: 6,
             child: SizedBox(
-              width: 240,
-              height: 260,
+              width: cardWidth,
+              height: cardHeight,
               child: Center(
                 child: SizedBox(
                   height: 180,
@@ -145,44 +149,46 @@ class _HoverPieCardState extends State<_HoverPieCard> {
               ),
             ),
           ),
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 200),
-            bottom: _hovering ? 0 : -40,
-            curve: Curves.ease,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: _hovering ? 1.0 : 0.0,
-              child: Container(
-                width: 200,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.pink700,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
-                    bottomRight: Radius.circular(20),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.pink700.withOpacity(0.15),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+        ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: _hovering
+              ? Container(
+                  key: const ValueKey('title'),
+                  width: cardWidth,
+                  margin: const EdgeInsets.only(top: 0),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.pink700,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
                     ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  widget.title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.pink700.withOpacity(0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    widget.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              : SizedBox(
+                  key: const ValueKey('empty'),
+                  width: cardWidth,
+                  height: 0,
                 ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
