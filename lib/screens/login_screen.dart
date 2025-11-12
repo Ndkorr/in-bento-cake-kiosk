@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import 'welcome_screen.dart';
+import 'staff_screen.dart'; 
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onContinueKiosk;
@@ -27,7 +28,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
     // Example: username = 'staff', password = 'staff123'
     if (username == 'staff' && password == 'staff123') {
-      widget.onStaffLogin(username);
+      // Navigate to StaffScreen
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const StaffScreen()),
+      );
     } else {
       setState(() => _error = 'Incorrect username or password');
     }
