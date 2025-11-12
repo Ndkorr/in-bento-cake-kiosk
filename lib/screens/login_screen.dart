@@ -50,105 +50,107 @@ class _LoginScreenState extends State<LoginScreen> {
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 350),
               child: _showStaffLogin
-                  ? Column(
+                  ? SingleChildScrollView(
                       key: const ValueKey('staff'),
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Staff Login',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            color: AppColors.pink700,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        TextField(
-                          controller: _usernameController,
-                          decoration: InputDecoration(
-                            labelText: 'Username',
-                            labelStyle: TextStyle(color: AppColors.pink500),
-                            filled: true,
-                            fillColor: AppColors.cream200.withOpacity(0.2),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(color: AppColors.peach300),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Staff Login',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: AppColors.pink700,
+                              fontWeight: FontWeight.bold,
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 24),
+                          TextField(
+                            controller: _usernameController,
+                            decoration: InputDecoration(
+                              labelText: 'Username',
+                              labelStyle: TextStyle(color: AppColors.pink500),
+                              filled: true,
+                              fillColor: AppColors.cream200.withOpacity(0.2),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide(color: AppColors.peach300),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide(
                                   color: AppColors.pink500, width: 2),
-                            ),
-                          ),
-                          style: TextStyle(color: AppColors.pink700),
-                          textInputAction: TextInputAction.next,
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            labelStyle: TextStyle(color: AppColors.pink500),
-                            errorText: _error,
-                            filled: true,
-                            fillColor: AppColors.cream200.withOpacity(0.2),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(color: AppColors.peach300),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                  color: AppColors.pink500, width: 2),
-                            ),
-                          ),
-                          style: TextStyle(color: AppColors.pink700),
-                          onSubmitted: (_) => _handleStaffLogin(),
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.pink500,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 14),
-                                ),
-                                onPressed: _handleStaffLogin,
-                                child: const Text('Login'),
                               ),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: OutlinedButton(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.pink700,
-                                  side: BorderSide(color: AppColors.peach300),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 14),
-                                ),
-                                onPressed: () => setState(() {
-                                  _showStaffLogin = false;
-                                  _error = null;
-                                  _usernameController.clear();
-                                  _passwordController.clear();
-                                }),
-                                child: const Text('Back'),
+                            style: TextStyle(color: AppColors.pink700),
+                            textInputAction: TextInputAction.next,
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              labelStyle: TextStyle(color: AppColors.pink500),
+                              errorText: _error,
+                              filled: true,
+                              fillColor: AppColors.cream200.withOpacity(0.2),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide(color: AppColors.peach300),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide(
+                                    color: AppColors.pink500, width: 2),
                               ),
                             ),
-                          ],
-                        ),
-                      ],
+                            style: TextStyle(color: AppColors.pink700),
+                            onSubmitted: (_) => _handleStaffLogin(),
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.pink500,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 14),
+                                  ),
+                                  onPressed: _handleStaffLogin,
+                                  child: const Text('Login'),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: OutlinedButton(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.pink700,
+                                    side: BorderSide(color: AppColors.peach300),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 14),
+                                  ),
+                                  onPressed: () => setState(() {
+                                    _showStaffLogin = false;
+                                    _error = null;
+                                    _usernameController.clear();
+                                    _passwordController.clear();
+                                  }),
+                                  child: const Text('Back'),
+                              ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     )
                   : Column(
                       key: const ValueKey('kiosk'),
