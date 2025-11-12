@@ -121,15 +121,17 @@ class _HoverPieCardState extends State<_HoverPieCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        MouseRegion(
-          onEnter: (_) => setState(() => _hovering = true),
-          onExit: (_) => setState(() => _hovering = false),
-          child: Card(
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Card(
             color: Colors.white,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
             elevation: 6,
             child: SizedBox(
               width: 240,
@@ -143,34 +145,44 @@ class _HoverPieCardState extends State<_HoverPieCard> {
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 2), // Closer to the card
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          child: _hovering
-              ? Container(
-                  key: const ValueKey('title'),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.pink700,
-                    borderRadius: BorderRadius.circular(12),
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 200),
+            bottom: _hovering ? 0 : -40,
+            curve: Curves.ease,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: _hovering ? 1.0 : 0.0,
+              child: Container(
+                width: 200,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.pink700,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
                   ),
-                  child: Text(
-                    widget.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.pink700.withOpacity(0.15),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
-                )
-              : const SizedBox(
-                  key: ValueKey('empty'),
-                  height: 20, // Smaller reserved space
+                  ],
                 ),
-        ),
-      ],
+                alignment: Alignment.center,
+                child: Text(
+                  widget.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
