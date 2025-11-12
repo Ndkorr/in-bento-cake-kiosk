@@ -125,72 +125,73 @@ class _HoverPieCardState extends State<_HoverPieCard> {
     const double cardWidth = 240;
     const double cardHeight = 260;
 
-    return Stack(
-      alignment: Alignment.bottomCenter,
-      children: [
-        // The card with the pie chart
-        MouseRegion(
-          onEnter: (_) => setState(() => _hovering = true),
-          onExit: (_) => setState(() => _hovering = false),
-          child: Card(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            elevation: 6,
-            child: SizedBox(
-              width: cardWidth,
-              height: cardHeight,
-              child: Center(
-                child: SizedBox(
-                  height: 180,
-                  width: 160,
-                  child: widget.pie,
+    return SizedBox(
+      width: cardWidth,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.bottomCenter,
+        children: [
+          MouseRegion(
+            onEnter: (_) => setState(() => _hovering = true),
+            onExit: (_) => setState(() => _hovering = false),
+            child: Card(
+              color: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              elevation: 6,
+              child: SizedBox(
+                width: cardWidth,
+                height: cardHeight,
+                child: Center(
+                  child: SizedBox(
+                    height: 180,
+                    width: 160,
+                    child: widget.pie,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        // The animated title background, slightly overlapping the card
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          child: _hovering
-              ? Positioned(
-                  // Use negative offset to move it up and hide the background's top edge
-                  bottom: -18,
-                  child: Container(
-                    key: const ValueKey('title'),
-                    width: cardWidth - 32,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.pink700,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.pink700.withOpacity(0.15),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      widget.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: Colors.white,
+          // Animated label below the card, overlapping the border
+          Positioned(
+            bottom: -22,
+            child: AnimatedSlide(
+              duration: const Duration(milliseconds: 200),
+              offset: _hovering ? Offset.zero : const Offset(0, 0.2),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: _hovering ? 1.0 : 0.0,
+                child: Container(
+                  width: cardWidth - 32,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.pink700,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.pink700.withOpacity(0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    widget.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.white,
                     ),
                   ),
-                )
-              : const SizedBox(
-                  key: ValueKey('empty'),
-                  height: 0,
                 ),
-        ),
-      ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
