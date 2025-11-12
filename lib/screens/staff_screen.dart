@@ -124,6 +124,7 @@ class _HoverPieCardState extends State<_HoverPieCard> {
     // Card size constants
     const double cardWidth = 240;
     const double cardHeight = 260;
+    const double borderExtension = 18; // How much larger the background is
 
     return Stack(
       clipBehavior: Clip.none,
@@ -133,16 +134,19 @@ class _HoverPieCardState extends State<_HoverPieCard> {
         AnimatedPositioned(
           duration: const Duration(milliseconds: 200),
           curve: Curves.ease,
-          bottom: _hovering ? -28 : -60,
+          bottom: _hovering ? -borderExtension : -60,
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 200),
             opacity: _hovering ? 1.0 : 0.0,
             child: Container(
-              width: cardWidth - 32,
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              width: cardWidth + borderExtension * 2,
+              height: 54 + borderExtension, // enough for text and border effect
               decoration: BoxDecoration(
                 color: AppColors.pink700,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(28),
+                  top: Radius.circular(24),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.pink700.withOpacity(0.15),
@@ -151,13 +155,16 @@ class _HoverPieCardState extends State<_HoverPieCard> {
                   ),
                 ],
               ),
-              alignment: Alignment.center,
-              child: Text(
-                widget.title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: Colors.white,
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  widget.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
