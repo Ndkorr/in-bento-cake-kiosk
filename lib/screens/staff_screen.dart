@@ -125,9 +125,10 @@ class _HoverPieCardState extends State<_HoverPieCard> {
     const double cardWidth = 240;
     const double cardHeight = 260;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Stack(
+      alignment: Alignment.bottomCenter,
       children: [
+        // The card with the pie chart
         MouseRegion(
           onEnter: (_) => setState(() => _hovering = true),
           onExit: (_) => setState(() => _hovering = false),
@@ -150,41 +151,42 @@ class _HoverPieCardState extends State<_HoverPieCard> {
             ),
           ),
         ),
+        // The animated title background, slightly overlapping the card
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
           child: _hovering
-              ? Container(
-                  key: const ValueKey('title'),
-                  width: cardWidth,
-                  margin: const EdgeInsets.only(top: 0),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.pink700,
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
+              ? Positioned(
+                  // Use negative offset to move it up and hide the background's top edge
+                  bottom: -18,
+                  child: Container(
+                    key: const ValueKey('title'),
+                    width: cardWidth - 32,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.pink700,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.pink700.withOpacity(0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.pink700.withOpacity(0.15),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                    alignment: Alignment.center,
+                    child: Text(
+                      widget.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Colors.white,
                       ),
-                    ],
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    widget.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.white,
                     ),
                   ),
                 )
-              : SizedBox(
-                  key: const ValueKey('empty'),
-                  width: cardWidth,
+              : const SizedBox(
+                  key: ValueKey('empty'),
                   height: 0,
                 ),
         ),
