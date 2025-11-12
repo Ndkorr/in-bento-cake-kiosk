@@ -144,21 +144,30 @@ class _HoverPieCardState extends State<_HoverPieCard> {
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 2), // Closer to the card
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
           child: _hovering
-              ? Text(
-                  widget.title,
+              ? Container(
                   key: const ValueKey('title'),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.pink700,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    widget.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.white,
+                    ),
                   ),
                 )
               : const SizedBox(
                   key: ValueKey('empty'),
-                  height: 24, // Reserve space for smooth transition
+                  height: 20, // Smaller reserved space
                 ),
         ),
       ],
