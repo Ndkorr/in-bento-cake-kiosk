@@ -134,29 +134,27 @@ class _HoverPieCardState extends State<_HoverPieCard> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: _hovering
-                    ? Padding(
-                        key: const ValueKey('title'),
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(
-                          widget.title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        ),
-                      )
-                    : const SizedBox(
-                        key: ValueKey('empty'),
-                        height: 32, // Reserve space for smooth transition
-                      ),
-              ),
               SizedBox(
                 height: 180,
                 width: 160,
                 child: widget.pie,
+              ),
+              const SizedBox(height: 12),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _hovering
+                    ? Text(
+                        widget.title,
+                        key: const ValueKey('title'),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                        ),
+                      )
+                    : const SizedBox(
+                        key: ValueKey('empty'),
+                        height: 24, // Reserve space for smooth transition
+                      ),
               ),
             ],
           ),
