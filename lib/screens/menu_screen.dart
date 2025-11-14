@@ -30,20 +30,20 @@ class _MenuScreenState extends State<MenuScreen>
   // Sample cake data - replace with your actual data later
   final List<Map<String, dynamic>> _cakes = [
     {
-      'name': 'Chocolate Dream',
-      'description': 'Rich chocolate cake with cream',
+      'name': 'Combo C',
+      'description': 'Minifesto Deluxe',
       'price': 299.00,
       'image': 'assets/images/cake_1.png',
     },
     {
-      'name': 'Strawberry Delight',
-      'description': 'Fresh strawberries with vanilla',
+      'name': 'Combo B',
+      'description': 'Minifesto Elite',
       'price': 349.00,
       'image': 'assets/images/cake_2.png',
     },
     {
-      'name': 'Classic Vanilla',
-      'description': 'Traditional vanilla perfection',
+      'name': 'Combo A',
+      'description': 'Minifesto Classic',
       'price': 249.00,
       'image': 'assets/images/cake_3.png',
     },

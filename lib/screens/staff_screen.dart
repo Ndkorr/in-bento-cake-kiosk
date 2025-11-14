@@ -33,18 +33,32 @@ class _StaffScreenState extends State<StaffScreen> {
   }
 
   Future<void> _addUser() async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Add User'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Email',
-            hintText: 'user@inbento.com',
-          ),
-          autofocus: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                hintText: 'user@inbento.com',
+              ),
+              autofocus: true,
+            ),
+            TextField(
+              controller: passwordController,
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                hintText: 'password',
+              ),
+              obscureText: true,
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -53,9 +67,10 @@ class _StaffScreenState extends State<StaffScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              final email = controller.text.trim();
-              if (email.isNotEmpty) {
-                Navigator.pop(context, email);
+              final email = emailController.text.trim();
+              final password = passwordController.text.trim();
+              if (email.isNotEmpty && password.isNotEmpty) {
+                Navigator.pop(context, {'user': email, 'password': password});
               }
             },
             child: const Text('Add'),
@@ -63,17 +78,17 @@ class _StaffScreenState extends State<StaffScreen> {
         ],
       ),
     );
-    if (result != null && result.isNotEmpty) {
-      await FirebaseFirestore.instance.collection('users').add({
-        'user': result,
-        // Optionally add a password or other fields here
-      });
+    if (result != null) {
+      await FirebaseFirestore.instance.collection('users').add(result);
     }
   }
 
   Future<void> _deleteUser() async {
     if (_selectedUserDocId != null) {
-      await FirebaseFirestore.instance.collection('users').doc(_selectedUserDocId).delete();
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_selectedUserDocId)
+          .delete();
       setState(() {
         _selectedUserIndex = null;
         _selectedUserDocId = null;
@@ -98,7 +113,9 @@ class _StaffScreenState extends State<StaffScreen> {
             children: [
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('users').snapshots(),
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .snapshots(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
@@ -151,7 +168,6 @@ class _StaffScreenState extends State<StaffScreen> {
       );
     }
 
-    
     return Scaffold(
       backgroundColor: AppColors.cream200,
       appBar: AppBar(
@@ -449,23 +465,23 @@ class _AnimatedHoverButtonState extends State<AnimatedHoverButton> {
         onTapUp: (_) {
           setState(() => _isPressed = false);
           if (widget.onTap != null) widget.onTap!();
-          },
+        },
         onTapCancel: () => setState(() => _isPressed = false),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            curve: Curves.ease,
-            decoration: BoxDecoration(
-              gradient: _isPressed ? redGradient : null,
-              color: _isPressed
-                  ? null
-                  : _isHovered
-                      ? Colors.grey[100]
-                      : Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: AppColors.pink700,
-                width: 2,
-              ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.ease,
+          decoration: BoxDecoration(
+            gradient: _isPressed ? redGradient : null,
+            color: _isPressed
+                ? null
+                : _isHovered
+                    ? Colors.grey[100]
+                    : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: AppColors.pink700,
+              width: 2,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withAlpha(30),

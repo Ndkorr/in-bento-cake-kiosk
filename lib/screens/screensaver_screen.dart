@@ -16,9 +16,9 @@ class _ScreensaverScreenState extends State<ScreensaverScreen> {
   int _currentImageIndex = 0;
 
   final List<String> _images = [
-    'assets/images/cake_1.png',
-    'assets/images/cake_2.png',
-    'assets/images/cake_3.png',
+    'assets/images/cake_promo_1.png',
+    'assets/images/cake_promo_2.png',
+    'assets/images/cake_promo_3.png',
   ];
 
   @override
@@ -53,11 +53,15 @@ class _ScreensaverScreenState extends State<ScreensaverScreen> {
         backgroundColor: Colors.black,
         body: Stack(
           children: [
-            // Background with sliding images - no darkening
+            // Background with sliding images
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 1500),
               transitionBuilder: (child, animation) {
-                return FadeTransition(opacity: animation, child: child);
+                final offsetAnimation = Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(animation);
+                return SlideTransition(position: offsetAnimation, child: child);
               },
               child: Container(
                 key: ValueKey<int>(_currentImageIndex),
@@ -75,25 +79,13 @@ class _ScreensaverScreenState extends State<ScreensaverScreen> {
               ),
             ),
 
-            // Static logo in bottom right corner
+            // Static logo in bottom right corner (no white background)
             Positioned(
               bottom: 24,
               right: 24,
-              child: Container(
+              child: SizedBox(
                 width: 120,
                 height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(16),
                 child: Image.asset(
                   'assets/icons/icon-original.png',
                   fit: BoxFit.contain,

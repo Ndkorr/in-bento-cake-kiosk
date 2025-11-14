@@ -406,7 +406,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   List<Map<String, String>> _getOptionsForCake() {
     final cakeName = widget.cake['name'] as String;
 
-    if (cakeName == 'Classic Vanilla') {
+    if (cakeName == 'Combo A') {
       return [
         {
           'title': '2 LAYERS',
@@ -444,7 +444,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
           'clickable': 'false'
         },
       ];
-    } else if (cakeName == 'Chocolate Dream') {
+    } else if (cakeName == 'Combo C') {
       return [
         {
           'title': '3 LAYERS',
@@ -484,7 +484,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
           'clickable': 'false'
         },
       ];
-    } else if (cakeName == 'Strawberry Delight') {
+    } else if (cakeName == 'Combo B') {
       return [
         {
           'title': '2 LAYERS',
