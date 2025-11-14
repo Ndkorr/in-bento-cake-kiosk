@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../screens/screensaver_screen.dart';
+import '../screens/staff_screen.dart';
 
 class IdleDetector extends StatefulWidget {
   const IdleDetector({
@@ -43,6 +44,13 @@ class _IdleDetectorState extends State<IdleDetector> {
   void _onIdle() async {
     final navigator = widget.navigatorKey.currentState;
     if (navigator != null) {
+      // Check if StaffScreen is visible
+      final isStaffScreen = _isStaffScreenVisible(navigator.context);
+      if (isStaffScreen) {
+        _resetTimer();
+        return;
+      }
+
       await navigator.push(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) =>
@@ -54,10 +62,25 @@ class _IdleDetectorState extends State<IdleDetector> {
         ),
       );
 
-      // When returning from screensaver, reset the welcome screen
       widget.onIdleReturn?.call();
       _resetTimer();
     }
+  }
+
+// Helper function to check if StaffScreen is visible
+  bool _isStaffScreenVisible(BuildContext context) {
+    // Traverse the widget tree to see if StaffScreen is in the tree
+    bool found = false;
+    void visitor(Element element) {
+      if (element.widget is StaffScreen) {
+        found = true;
+      } else {
+        element.visitChildren(visitor);
+      }
+    }
+
+    context.visitChildElements(visitor);
+    return found;
   }
 
   @override

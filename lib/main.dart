@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/welcome_screen.dart';
@@ -7,6 +8,17 @@ import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: "AIzaSyAnmGr9FHVave9pmp2im4diJY_wNMq8qD0",
+      authDomain: "in-bento-kiosk.firebaseapp.com",
+      projectId: "in-bento-kiosk",
+      storageBucket: "in-bento-kiosk.appspot.com",
+      messagingSenderId: "903181498096",
+      appId: "1:903181498096:web:77a6adb884c80f1968f435",
+      measurementId: "G-ZKN5VYX022",
+    ),
+  );
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const MyApp());
