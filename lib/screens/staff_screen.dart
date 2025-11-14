@@ -85,14 +85,37 @@ class _StaffScreenState extends State<StaffScreen> {
 
   Future<void> _deleteUser() async {
     if (_selectedUserDocId != null) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_selectedUserDocId)
-          .delete();
-      setState(() {
-        _selectedUserIndex = null;
-        _selectedUserDocId = null;
-      });
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete User'),
+          content: const Text(
+              'Are you sure you want to delete this user? This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.pink700,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_selectedUserDocId)
+            .delete();
+        setState(() {
+          _selectedUserIndex = null;
+          _selectedUserDocId = null;
+        });
+      }
     }
   }
 
@@ -109,60 +132,207 @@ class _StaffScreenState extends State<StaffScreen> {
         ),
         body: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final docs = snapshot.data!.docs;
-                    return ListView.separated(
-                      itemCount: docs.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final data = docs[index].data() as Map<String, dynamic>;
-                        final selected = _selectedUserIndex == index;
-                        return ListTile(
-                          title: Text(data['user'] ?? ''),
-                          selected: selected,
-                          onTap: () {
-                            setState(() {
-                              _selectedUserIndex = index;
-                              _selectedUserDocId = docs[index].id;
-                            });
-                          },
-                        );
-                      },
-                    );
-                  },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: AnimatedHoverButton(
-                      label: 'Add',
-                      icon: Icons.person_add,
-                      onTap: _addUser,
-                    ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final docs = snapshot.data!.docs;
+                      return ListView.separated(
+                        itemCount: docs.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final data =
+                              docs[index].data() as Map<String, dynamic>;
+                          final selected = _selectedUserIndex == index;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedUserIndex = index;
+                                _selectedUserDocId = docs[index].id;
+                              });
+                            },
+                            onDoubleTap: () async {
+                              final emailController = TextEditingController(
+                                  text: data['user'] ?? '');
+                              final passwordController = TextEditingController(
+                                  text: data['password'] ?? '');
+                              final result =
+                                  await showDialog<Map<String, String>>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Edit User'),
+                                  content: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      TextField(
+                                        controller: emailController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Email',
+                                          hintText: 'user@inbento.com',
+                                        ),
+                                      ),
+                                      TextField(
+                                        controller: passwordController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Password',
+                                          hintText: 'password',
+                                        ),
+                                        obscureText: true,
+                                      ),
+                                    ],
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () async {
+                                        final email =
+                                            emailController.text.trim();
+                                        final password =
+                                            passwordController.text.trim();
+                                        if (email.isNotEmpty &&
+                                            password.isNotEmpty) {
+                                          final confirm =
+                                              await showDialog<bool>(
+                                            context: context,
+                                            builder: (context) => AlertDialog(
+                                              title: const Text('Save Changes'),
+                                              content: const Text(
+                                                  'Are you sure you want to save these changes?'),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(
+                                                          context, false),
+                                                  child: const Text('Cancel'),
+                                                ),
+                                                ElevatedButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(
+                                                          context, true),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        AppColors.pink700,
+                                                  ),
+                                                  child: const Text('Save'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                          if (confirm == true) {
+                                            Navigator.pop(context, {
+                                              'user': email,
+                                              'password': password
+                                            });
+                                          }
+                                        }
+                                      },
+                                      child: const Text('Save'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (result != null) {
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(docs[index].id)
+                                    .update(result);
+                              }
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.ease,
+                              margin: const EdgeInsets.symmetric(
+                                  vertical: 4, horizontal: 0),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? Colors.transparent
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                border: selected
+                                    ? Border.all(
+                                        color: AppColors.pink700, width: 2)
+                                    : null,
+                                boxShadow: selected
+                                    ? [
+                                        BoxShadow(
+                                          color: AppColors.pink700
+                                              .withOpacity(0.15),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : [],
+                              ),
+                              child: ListTile(
+                                title: Text(
+                                  data['user'] ?? '',
+                                  style: TextStyle(
+                                    fontWeight: selected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: selected
+                                        ? AppColors.pink700
+                                        : Colors.black,
+                                  ),
+                                ),
+                                selected: selected,
+                                trailing: selected
+                                    ? const Icon(Icons.check_circle,
+                                        color: AppColors.pink700)
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: AnimatedHoverButton(
-                      label: 'Delete',
-                      icon: Icons.delete,
-                      onTap: _selectedUserDocId != null ? _deleteUser : null,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AnimatedHoverButton(
+                        label: 'Add',
+                        icon: Icons.person_add,
+                        onTap: _addUser,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: AnimatedHoverButton(
+                        label: 'Delete',
+                        icon: Icons.delete,
+                        onTap: _selectedUserDocId != null ? _deleteUser : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       );
