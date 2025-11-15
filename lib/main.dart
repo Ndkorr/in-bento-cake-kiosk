@@ -10,7 +10,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: const FirebaseOptions(
-      apiKey: "AIzaSyAnmGr9FHVave9pmp2im4diJY_wNMq8qD0",
+      apiKey: String.fromEnvironment('FIREBASE_API_KEY'),
       authDomain: "in-bento-kiosk.firebaseapp.com",
       projectId: "in-bento-kiosk",
       storageBucket: "in-bento-kiosk.appspot.com",

@@ -27,7 +27,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web (CanvasKit)
-        run: flutter build web --release --base-href /in-bento-cake-kiosk/ --web-renderer canvaskit
+        run: flutter build web --release --base-href /in-bento-cake-kiosk/ --web-renderer canvaskit --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -62,7 +62,7 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
 
       - name: Extract version from pubspec.yaml
         id: get_version
