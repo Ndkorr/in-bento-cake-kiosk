@@ -3,9 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import 'thank_you_screen.dart';
 import 'welcome_screen.dart' show TiledIcons;
+import 'receipt_screen.dart';
 
 class PaymentMethodScreen extends StatelessWidget {
-  const PaymentMethodScreen({super.key});
+  final List<Map<String, dynamic>> cartItems;
+
+  const PaymentMethodScreen({super.key, required this.cartItems});
 
   @override
   Widget build(BuildContext context) {
@@ -33,11 +36,13 @@ class PaymentMethodScreen extends StatelessWidget {
                 const SizedBox(height: 32),
                 _PaymentOption(
                   icon: Icons.storefront,
-                  label: 'Pay at the Counter',
+                  label: 'Cash',
                   onTap: () {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (_) => const ThankYouScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => ReceiptScreen(cartItems: cartItems),
+                      ),
                     );
                   },
                 ),
@@ -48,7 +53,9 @@ class PaymentMethodScreen extends StatelessWidget {
                   onTap: () {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (_) => const ThankYouScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => ReceiptScreen(cartItems: cartItems),
+                      ),
                     );
                   },
                 ),

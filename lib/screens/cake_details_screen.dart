@@ -32,7 +32,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   bool _showFrostingSelection = false;
   bool _showToppingSelection = false;
   bool _showShapeSelection = false;
-  bool _showFlavorSelection = false; 
+  bool _showFlavorSelection = false;
   bool _showToppingDetailPopup = false;
   bool _showErrorPopup = false;
   String _errorMessage = '';
@@ -43,7 +43,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   List<String?> _selectedFillings = [];
   String? _selectedFrosting;
   String? _selectedShape;
-  String? _selectedFlavor; 
+  String? _selectedFlavor;
   List<String> _selectedToppings = [];
   bool _toppingsReadOnly = false;
 
@@ -53,6 +53,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   bool _frostingCompleted = false;
   bool _toppingsCompleted = false;
 
+  bool _showFlavorAfterShape = false;
 
   List<Map<String, dynamic>> _cartItems = [];
 
@@ -160,8 +161,15 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       _showError('Please select a cake shape.');
     } else {
       _hideShapeSelection();
-      _showLoadingScreen();
-      
+      // If Combo A and custom, show flavor selection after shape
+      if (widget.cake['name'] == 'Combo A') {
+        setState(() {
+          _showFlavorAfterShape = true;
+        });
+        _slideController.forward();
+      } else {
+        _showLoadingScreen();
+      }
     }
   }
 
@@ -184,7 +192,8 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                 selectedFillings:
                     _selectedFillings.isEmpty ? null : _selectedFillings,
                 selectedFrosting: _selectedFrosting,
-                selectedToppings: _selectedToppings.isEmpty ? null : _selectedToppings,
+                selectedToppings:
+                    _selectedToppings.isEmpty ? null : _selectedToppings,
               ),
             ),
           );
@@ -196,7 +205,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
             cartItem['cakeImage'] = widget.cake['image'];
             cartItem['cakePrice'] = widget.cake['price'];
             cartItem['quantity'] = 1; // Initialize quantity
-            
+
             setState(() {
               _cartItems.add(cartItem);
             });
@@ -378,6 +387,32 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         _frostingCompleted = true;
       });
       _hideSelection();
+    }
+  }
+
+  void _handleFlavorAfterShapeSelection(String flavor) {
+    setState(() {
+      _selectedFlavor = flavor;
+    });
+  }
+
+  void _handleFlavorAfterShapeExit() {
+    if (_selectedFlavor == null) {
+      _showError('Please select a flavor for your cake.');
+    } else {
+      // Set all components to the selected flavor
+      setState(() {
+        _selectedLayers = [_selectedFlavor, _selectedFlavor];
+        _selectedFillings = [_selectedFlavor];
+        _selectedFrosting = _selectedFlavor;
+        _layersCompleted = true;
+        _fillingsCompleted = true;
+        _frostingCompleted = true;
+        _showFlavorAfterShape = false;
+      });
+      _slideController.reverse().then((_) {
+        _showLoadingScreen();
+      });
     }
   }
 
@@ -762,17 +797,30 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
             ),
           if (_showToppingDetailPopup)
             _ToppingDetailPopup(onDismiss: _hideDetailPopup),
-          if (_showErrorPopup)
-            _ErrorPopup(
-              message: _errorMessage,
-              onDismiss: _hideErrorPopup,
-            ),
+          if (_showFlavorAfterShape)
+  SlideTransition(
+    position: _slideAnimation,
+    child: _FlavorSelectionOverlay(
+      selectedFlavor: _selectedFlavor,
+      onFlavorSelected: _handleFlavorAfterShapeSelection,
+      onBack: _handleFlavorAfterShapeExit,
+    ),
+  ),
+if (_showFlavorAfterShape && _showErrorPopup)
+  _ErrorPopup(
+    message: _errorMessage,
+    onDismiss: _hideErrorPopup,
+  ),
+if (!_showFlavorAfterShape && _showErrorPopup)
+  _ErrorPopup(
+    message: _errorMessage,
+    onDismiss: _hideErrorPopup,
+  ),
         ],
       ),
     );
   }
 }
-
 
 /// Loading overlay specifically for cake preparation
 class _CakeLoadingOverlay extends StatefulWidget {
@@ -1015,18 +1063,21 @@ class _AnimatedIconCircle extends StatelessWidget {
   }
 }
 
-
 /// Flavor selection overlay (for Classic Vanilla)
 class _FlavorSelectionOverlay extends StatelessWidget {
   const _FlavorSelectionOverlay({
     required this.selectedFlavor,
     required this.onFlavorSelected,
     required this.onBack,
+    this.errorMessage,
+    this.onDismissError,
   });
 
   final String? selectedFlavor;
   final Function(String flavor) onFlavorSelected;
   final VoidCallback onBack;
+  final String? errorMessage;
+  final VoidCallback? onDismissError;
 
   @override
   Widget build(BuildContext context) {
@@ -1039,6 +1090,11 @@ class _FlavorSelectionOverlay extends StatelessWidget {
           const Positioned.fill(
             child: _TiledIcons(),
           ),
+          if (errorMessage != null && onDismissError != null)
+            _ErrorPopup(
+              message: errorMessage!,
+              onDismiss: onDismissError!,
+            ),
           SafeArea(
             child: Center(
               child: Container(

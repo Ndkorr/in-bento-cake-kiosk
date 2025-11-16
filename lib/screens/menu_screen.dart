@@ -16,8 +16,7 @@ class MenuScreen extends StatefulWidget {
   State<MenuScreen> createState() => _MenuScreenState();
 }
 
-class _MenuScreenState extends State<MenuScreen>
-    with TickerProviderStateMixin {
+class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
   late AnimationController _pulseController;
   int? _selectedCakeIndex;
   final Map<int, int> _cart = {}; // cakeIndex -> quantity
@@ -80,7 +79,8 @@ class _MenuScreenState extends State<MenuScreen>
 
   int get _totalItems {
     int presetCakes = _cart.values.fold(0, (sum, quantity) => sum + quantity);
-    int customCakes = _customCakes.fold(0, (sum, cake) => sum + (cake['quantity'] ?? 1) as int);
+    int customCakes = _customCakes.fold(
+        0, (sum, cake) => sum + (cake['quantity'] ?? 1) as int);
     return presetCakes + customCakes;
   }
 
@@ -353,7 +353,8 @@ class _MenuScreenState extends State<MenuScreen>
                   });
                 },
                 onViewTap: () async {
-                  final returnedCart = await Navigator.push<List<Map<String, dynamic>>>(
+                  final returnedCart =
+                      await Navigator.push<List<Map<String, dynamic>>>(
                     context,
                     PageRouteBuilder(
                       transitionDuration: const Duration(milliseconds: 500),
@@ -367,11 +368,39 @@ class _MenuScreenState extends State<MenuScreen>
                       },
                     ),
                   );
-                  
+
                   // Update custom cakes cart when returning
                   if (returnedCart != null && mounted) {
                     setState(() {
-                      _customCakes = returnedCart;
+                      _customCakes = returnedCart.map((cake) {
+                        final comboNames = ['Combo A', 'Combo B', 'Combo C'];
+                        final selectedCakeName = _cakes[index]['name'];
+                        // Ensure selectedToppings is always a List<String>
+                        final selectedToppings =
+                            (cake['selectedToppings'] as List?)
+                                    ?.cast<String>() ??
+                                [];
+
+                        if ((cake['name'] == null || cake['name'] == '') &&
+                            comboNames.contains(selectedCakeName)) {
+                          return {
+                            ...cake,
+                            'name': selectedCakeName,
+                            'description': _cakes[index]['description'] ?? '',
+                            'isCustom': true,
+                            'selectedToppings': selectedToppings,
+                          };
+                        }
+                        if (cake['isCustom'] == null ||
+                            cake['selectedToppings'] == null) {
+                          return {
+                            ...cake,
+                            'isCustom': true,
+                            'selectedToppings': selectedToppings,
+                          };
+                        }
+                        return cake;
+                      }).toList();
                     });
                   }
                 },
@@ -437,8 +466,8 @@ class _BottomCartBar extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Ubuntu',
                       fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
+                      fontSize: 16,
+                    ),
                   ),
                 ],
               ),
@@ -531,12 +560,12 @@ class _MenuActionButtonState extends State<_MenuActionButton> {
   Widget build(BuildContext context) {
     final isActive = _isPressed || _isHovered;
     final gradientColors = (widget.gradient as LinearGradient).colors;
-  final outerRadius = widget.compact ? 11.0 : 16.0;
-  final midRadius = widget.compact ? 9.0 : 14.0;
-  final innerRadius = widget.compact ? 7.0 : 12.0;
-  final padV = widget.compact ? 5.0 : 12.0;
-  final padH = widget.compact ? 6.0 : 12.0;
-  final fontSize = widget.compact ? 12.0 : 14.0;
+    final outerRadius = widget.compact ? 11.0 : 16.0;
+    final midRadius = widget.compact ? 9.0 : 14.0;
+    final innerRadius = widget.compact ? 7.0 : 12.0;
+    final padV = widget.compact ? 5.0 : 12.0;
+    final padH = widget.compact ? 6.0 : 12.0;
+    final fontSize = widget.compact ? 12.0 : 14.0;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -874,10 +903,12 @@ class _CartOverlayState extends State<_CartOverlay>
                           ),
                           // Cart items
                           Expanded(
-                            child: widget.cart.isEmpty && widget.customCakes.isEmpty
+                            child: widget.cart.isEmpty &&
+                                    widget.customCakes.isEmpty
                                 ? Center(
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Icon(
                                           Icons.shopping_cart_outlined,
@@ -899,40 +930,51 @@ class _CartOverlayState extends State<_CartOverlay>
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 24,
                                     ),
-                                    itemCount: widget.cart.length + widget.customCakes.length,
+                                    itemCount: widget.cart.length +
+                                        widget.customCakes.length,
                                     itemBuilder: (context, index) {
                                       // Show preset cakes first, then custom cakes
                                       if (index < widget.cart.length) {
                                         // Preset cake
                                         final cakeIndex =
                                             widget.cart.keys.elementAt(index);
-                                        final quantity = widget.cart[cakeIndex]!;
+                                        final quantity =
+                                            widget.cart[cakeIndex]!;
                                         final cake = widget.cakes[cakeIndex];
 
                                         return _CartItem(
                                           cake: cake,
                                           quantity: quantity,
-                                          onIncrease: () => widget.onUpdateQuantity(
+                                          onIncrease: () =>
+                                              widget.onUpdateQuantity(
                                             cakeIndex,
                                             quantity + 1,
                                           ),
-                                          onDecrease: () => widget.onUpdateQuantity(
+                                          onDecrease: () =>
+                                              widget.onUpdateQuantity(
                                             cakeIndex,
                                             quantity - 1,
                                           ),
-                                          onDelete: () =>
-                                              widget.onUpdateQuantity(cakeIndex, 0),
+                                          onDelete: () => widget
+                                              .onUpdateQuantity(cakeIndex, 0),
                                         );
                                       } else {
                                         // Custom cake
-                                        final customIndex = index - widget.cart.length;
-                                        final customCake = widget.customCakes[customIndex];
+                                        final customIndex =
+                                            index - widget.cart.length;
+                                        final customCake =
+                                            widget.customCakes[customIndex];
 
                                         return _CustomCakeCartItem(
                                           customCake: customCake,
-                                          onDelete: () => widget.onRemoveCustomCake(customIndex),
-                                          onIncrease: () => widget.onUpdateCustomCakeQuantity(customIndex, 1),
-                                          onDecrease: () => widget.onUpdateCustomCakeQuantity(customIndex, -1),
+                                          onDelete: () => widget
+                                              .onRemoveCustomCake(customIndex),
+                                          onIncrease: () =>
+                                              widget.onUpdateCustomCakeQuantity(
+                                                  customIndex, 1),
+                                          onDecrease: () =>
+                                              widget.onUpdateCustomCakeQuantity(
+                                                  customIndex, -1),
                                         );
                                       }
                                     },
@@ -986,13 +1028,29 @@ class _CartOverlayState extends State<_CartOverlay>
                                       const SizedBox(height: 16),
                                       _MenuActionButton(
                                         onTap: () async {
-                                          final method = await Navigator.push(
+                                          // Combine preset and custom cakes into a single list
+                                          final List<Map<String, dynamic>>
+                                              cartItems = [
+                                            // Convert preset cakes to cart item maps
+                                            ...widget.cart.entries.map((entry) {
+                                              final cake =
+                                                  widget.cakes[entry.key];
+                                              return {
+                                                ...cake,
+                                                'quantity': entry.value,
+                                              };
+                                            }),
+                                            // Add custom cakes
+                                            ...widget.customCakes,
+                                          ];
+                                          await Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const PaymentMethodScreen()),
+                                              builder: (_) =>
+                                                  PaymentMethodScreen(
+                                                      cartItems: cartItems),
+                                            ),
                                           );
-                                          // Handle the returned method ('counter' or 'card_or_qr')
                                         },
                                         gradient: const LinearGradient(
                                           colors: [
@@ -1182,7 +1240,7 @@ class _CustomCakeCartItem extends StatelessWidget {
     final shape = customCake['shape'] ?? 'Unknown';
     final frosting = customCake['frosting'] ?? 'Unknown';
     final numLayers = (customCake['layers'] as List?)?.length ?? 0;
-    
+
     return '${shape[0].toUpperCase()}${shape.substring(1)} • $numLayers layers • $frosting frosting';
   }
 
@@ -1535,13 +1593,12 @@ class CakeCardState extends State<CakeCard> with TickerProviderStateMixin {
       vsync: this,
     );
 
-    _scrollAnimation =
-        Tween<Alignment>(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ).animate(
-          CurvedAnimation(parent: _scrollController, curve: Curves.easeInOut),
-        );
+    _scrollAnimation = Tween<Alignment>(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    ).animate(
+      CurvedAnimation(parent: _scrollController, curve: Curves.easeInOut),
+    );
 
     if (widget.isSelected) {
       _startSelectionAnimation();
@@ -1563,13 +1620,12 @@ class CakeCardState extends State<CakeCard> with TickerProviderStateMixin {
 
   void _startSelectionAnimation() {
     // Animate from center to bottom first for a smooth start
-    _scrollAnimation =
-        Tween<Alignment>(
-          begin: Alignment.center,
-          end: Alignment.bottomCenter,
-        ).animate(
-          CurvedAnimation(parent: _scrollController, curve: Curves.easeInOut),
-        );
+    _scrollAnimation = Tween<Alignment>(
+      begin: Alignment.center,
+      end: Alignment.bottomCenter,
+    ).animate(
+      CurvedAnimation(parent: _scrollController, curve: Curves.easeInOut),
+    );
 
     _scrollController.forward(from: 0.0);
 
@@ -1580,13 +1636,12 @@ class CakeCardState extends State<CakeCard> with TickerProviderStateMixin {
   void _onAnimationStatusChange(AnimationStatus status) {
     if (status == AnimationStatus.completed) {
       // Re-define the animation for a continuous up-and-down loop
-      _scrollAnimation =
-          Tween<Alignment>(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ).animate(
-            CurvedAnimation(parent: _scrollController, curve: Curves.easeInOut),
-          );
+      _scrollAnimation = Tween<Alignment>(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).animate(
+        CurvedAnimation(parent: _scrollController, curve: Curves.easeInOut),
+      );
       _scrollController.repeat(reverse: true);
       // Remove the listener to avoid re-adding it on every loop
       _scrollController.removeStatusListener(_onAnimationStatusChange);
@@ -1796,7 +1851,10 @@ class CakeCardState extends State<CakeCard> with TickerProviderStateMixin {
                                   _MenuActionButton(
                                     onTap: widget.onViewTap,
                                     gradient: const LinearGradient(
-                                      colors: [AppColors.pink500, AppColors.salmon400],
+                                      colors: [
+                                        AppColors.pink500,
+                                        AppColors.salmon400
+                                      ],
                                     ),
                                     compact: true,
                                     child: Row(
