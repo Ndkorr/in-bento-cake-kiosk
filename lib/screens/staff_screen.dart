@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../theme/app_colors.dart';
 import 'welcome_screen.dart';
+import 'receipt_screen.dart'; // Add this import for ReceiptScreen
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 
 class StaffScreen extends StatefulWidget {
   const StaffScreen({super.key});
@@ -16,7 +19,20 @@ class _StaffScreenState extends State<StaffScreen> {
   // Dummy user list for demonstration
   int? _selectedUserIndex;
   bool _showUserManager = false;
+  bool _showOrdersManager = false;
   String? _selectedUserDocId;
+
+  void _showManageOrders() {
+    setState(() {
+      _showOrdersManager = true;
+    });
+  }
+
+  void _hideManageOrders() {
+    setState(() {
+      _showOrdersManager = false;
+    });
+  }
 
   void _showManageUsers() {
     setState(() {
@@ -121,6 +137,105 @@ class _StaffScreenState extends State<StaffScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showOrdersManager) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Orders'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _hideManageOrders,
+          ),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: StreamBuilder<QuerySnapshot>(
+              stream:
+                  FirebaseFirestore.instance.collection('orders').snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final docs = snapshot.data!.docs;
+                if (docs.isEmpty) {
+                  return const Center(child: Text('No orders found.'));
+                }
+                return ListView.separated(
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final orderId = docs[index].id;
+                    final customer = data['customer'] ?? 'Unknown';
+                    final total = data['total'] ?? '';
+                    final date = data['date'] ?? '';
+                    final cartItems = (data['cartItems'] as List<dynamic>?)
+                            ?.map<Map<String, dynamic>>((item) {
+                          final map = Map<String, dynamic>.from(item as Map);
+                          // If you stored a thumbnail as bytes, convert from base64 or Blob if needed
+                          if (map['toppingsThumbnail'] != null) {
+                            final thumb = map['toppingsThumbnail'];
+                            if (thumb is String) {
+                              // Try base64 decode first
+                              try {
+                                map['toppingsThumbnail'] = base64Decode(thumb);
+                              } catch (_) {
+                                // If not base64, fallback to codeUnits
+                                map['toppingsThumbnail'] =
+                                    Uint8List.fromList(thumb.codeUnits);
+                              }
+                            } else if (thumb is List) {
+                              map['toppingsThumbnail'] =
+                                  Uint8List.fromList(thumb.cast<int>());
+                            } else if (thumb.runtimeType.toString() ==
+                                '_Blob') {
+                              // Firestore web may return a _Blob type
+                              map['toppingsThumbnail'] = thumb.bytes;
+                            }
+                          }
+                          return map;
+                        }).toList() ??
+                        [];
+
+                    return GestureDetector(
+                      onDoubleTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ReceiptScreen(cartItems: cartItems, showDoneButton: false),
+                          ),
+                        );
+                      },
+                      child: ListTile(
+                        title: Text('Order #$orderId'),
+                        subtitle: Text('Customer: $customer\nDate: $date'),
+                        trailing: Text(
+                          total != '' ? '₱$total' : '',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
     if (_showUserManager) {
       return Scaffold(
         appBar: AppBar(
@@ -421,7 +536,10 @@ class _StaffScreenState extends State<StaffScreen> {
                 ),
                 const SizedBox(height: 32),
                 AnimatedHoverButton(
-                    label: 'Orders', icon: Icons.receipt_long, onTap: () {}),
+                  label: 'Orders',
+                  icon: Icons.receipt_long,
+                  onTap: _showManageOrders,
+                ),
                 const SizedBox(height: 16),
                 AnimatedHoverButton(
                     label: 'Edit kiosk', icon: Icons.edit, onTap: () {}),
