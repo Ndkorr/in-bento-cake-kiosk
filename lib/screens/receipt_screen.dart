@@ -4,14 +4,22 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
+// ignore: depend_on_referenced_packages
 import 'package:image/image.dart' as img;
 
 class ReceiptScreen extends StatefulWidget {
   final List<Map<String, dynamic>> cartItems;
+  final String orderType;
+  final int? orderNumber;
   final bool showDoneButton;
 
-  const ReceiptScreen(
-      {super.key, required this.cartItems, this.showDoneButton = true});
+  const ReceiptScreen({
+    super.key,
+    required this.cartItems,
+    required this.orderType,
+    this.orderNumber,
+    this.showDoneButton = true,
+  });
 
   @override
   State<ReceiptScreen> createState() => _ReceiptScreenState();
@@ -20,13 +28,33 @@ class ReceiptScreen extends StatefulWidget {
 class _ReceiptScreenState extends State<ReceiptScreen> {
   Uint8List? _overlayImage;
 
+  Future<int> _getNextOrderNumber() async {
+    final counterRef =
+        FirebaseFirestore.instance.collection('counters').doc('orders');
+    return FirebaseFirestore.instance.runTransaction((transaction) async {
+      final snapshot = await transaction.get(counterRef);
+      int latest = 0;
+      if (snapshot.exists &&
+          snapshot.data()!.containsKey('latestOrderNumber')) {
+        latest = snapshot['latestOrderNumber'] as int;
+      } else {
+        // If the document doesn't exist, create it with 1
+        transaction.set(counterRef, {'latestOrderNumber': 1});
+        return 1;
+      }
+      final next = latest + 1;
+      transaction.update(counterRef, {'latestOrderNumber': next});
+      return next;
+    });
+  }
+
   Future<Uint8List> createThumbnail(Uint8List originalBytes) async {
     final image = img.decodeImage(originalBytes);
     final thumbnail = img.copyResize(image!, width: 100, height: 100);
     return Uint8List.fromList(img.encodePng(thumbnail));
   }
 
-  Future<void> _saveOrderToFirestore() async {
+  Future<int> _saveOrderToFirestore() async {
     final now = DateTime.now();
 
     // Process cart items and create thumbnails
@@ -42,7 +70,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       cartItemsForFirestore.add(newItem);
     }
 
+    final nextOrderNumber = await _getNextOrderNumber();
     final orderData = {
+      'orderNumber': nextOrderNumber,
       'cartItems': cartItemsForFirestore,
       'total': cartItemsForFirestore.fold<double>(
         0,
@@ -56,10 +86,12 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
           return sum + price * qty;
         },
       ),
+      'orderType': widget.orderType,
       'date': now.toIso8601String(),
       // Add more fields as needed, e.g. customer info
     };
     await FirebaseFirestore.instance.collection('orders').add(orderData);
+    return nextOrderNumber;
   }
 
   void _showImageOverlay(Uint8List image) {
@@ -79,6 +111,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     final now = DateTime.now();
     final orderNumber = now.millisecondsSinceEpoch.toString().substring(6);
     final dateStr = DateFormat('yyyy-MM-dd  HH:mm').format(now);
+    final displayOrderNumber =
+        (widget.orderNumber ?? 0).toString().padLeft(5, '0');
 
     // Calculate total price
     double total = 0;
@@ -105,7 +139,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey.shade400, width: 1.5),
-                boxShadow: [
+                boxShadow: const [
                   BoxShadow(
                     color: Colors.black12,
                     blurRadius: 8,
@@ -117,9 +151,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
+                    const Text(
                       'IN-BENTO CAKE KIOSK',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'RobotoMono',
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
@@ -137,11 +171,20 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                       ),
                     ),
                     Text(
-                      'Order #$orderNumber',
+                      'Order #$displayOrderNumber',
                       style: const TextStyle(
                         fontFamily: 'RobotoMono',
                         fontSize: 13,
                         color: Colors.black54,
+                      ),
+                    ),
+                    Text(
+                      widget.orderType,
+                      style: const TextStyle(
+                        fontFamily: 'RobotoMono',
+                        fontSize: 13,
+                        color: Colors.black87,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -271,6 +314,14 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                                   ? toppings.join(', ')
                                   : (isCustom ? 'None' : ''),
                             ),
+                            _receiptRow(
+                              'Dedication',
+                              cartItem['dedication'] != null &&
+                                      (cartItem['dedication'] as String)
+                                          .isNotEmpty
+                                  ? cartItem['dedication']
+                                  : 'None',
+                            ),
                             _receiptRow('Qty', qty.toString()),
                             _receiptRow(
                                 'Price',
@@ -286,10 +337,10 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                               const SizedBox(height: 8),
                               GestureDetector(
                                 onTap: () => _showImageOverlay(toppingsImage),
-                                child: Align(
+                                child: const Align(
                                   alignment: Alignment.centerLeft,
                                   child: Padding(
-                                    padding: const EdgeInsets.only(left: 0),
+                                    padding: EdgeInsets.only(left: 0),
                                     child: Text(
                                       'Toppings Preview',
                                       style: TextStyle(
@@ -318,9 +369,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                     Row(
                       children: [
                         const Spacer(),
-                        Text(
+                        const Text(
                           'TOTAL: ',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'RobotoMono',
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
@@ -339,9 +390,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                     const SizedBox(height: 8),
                     const Divider(thickness: 1, color: Colors.black87),
                     const SizedBox(height: 8),
-                    Text(
+                    const Text(
                       'THANK YOU FOR YOUR ORDER!',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'RobotoMono',
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
@@ -362,8 +413,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                     const SizedBox(height: 12),
                     if (widget.showDoneButton)
                       ElevatedButton(
-                        onPressed: () async {
-                          await _saveOrderToFirestore();
+                        onPressed: () {
                           Navigator.popUntil(context, (route) => route.isFirst);
                         },
                         child: const Text('Done'),

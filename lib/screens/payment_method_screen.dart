@@ -4,11 +4,63 @@ import '../theme/app_colors.dart';
 import 'thank_you_screen.dart';
 import 'welcome_screen.dart' show TiledIcons;
 import 'receipt_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PaymentMethodScreen extends StatelessWidget {
   final List<Map<String, dynamic>> cartItems;
+  final String orderType; // <-- add this
 
-  const PaymentMethodScreen({super.key, required this.cartItems});
+  const PaymentMethodScreen(
+      {super.key, required this.cartItems, required this.orderType});
+
+  double _calculateTotal(List<Map<String, dynamic>> cartItems) {
+    double total = 0;
+    for (final item in cartItems) {
+      final price = (item['price'] is num)
+          ? item['price'].toDouble()
+          : (item['cakePrice'] is num)
+              ? item['cakePrice'].toDouble()
+              : 0.0;
+      final qty = (item['quantity'] is int) ? item['quantity'] : 1;
+      total += price * qty;
+    }
+    return total;
+  }
+
+  Future<int> _saveOrderToFirestore(
+      List<Map<String, dynamic>> cartItems, String orderType) async {
+    final counterRef =
+        FirebaseFirestore.instance.collection('counters').doc('orders');
+    final nextOrderNumber =
+        await FirebaseFirestore.instance.runTransaction((transaction) async {
+      final snapshot = await transaction.get(counterRef);
+      int latest = 0;
+      if (snapshot.exists &&
+          snapshot.data()!.containsKey('latestOrderNumber')) {
+        latest = snapshot['latestOrderNumber'] as int;
+      } else {
+        transaction.set(counterRef, {'latestOrderNumber': 1});
+        return 1;
+      }
+      final next = latest + 1;
+      transaction.update(counterRef, {'latestOrderNumber': next});
+      return next;
+    });
+
+    final total = _calculateTotal(cartItems);
+
+    final now = DateTime.now();
+    final orderData = {
+      'orderNumber': nextOrderNumber,
+      'cartItems': cartItems,
+      'orderType': orderType,
+      'total': total,
+      'date': now.toIso8601String(),
+      // Add other fields as needed
+    };
+    await FirebaseFirestore.instance.collection('orders').add(orderData);
+    return nextOrderNumber;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,11 +89,18 @@ class PaymentMethodScreen extends StatelessWidget {
                 _PaymentOption(
                   icon: Icons.storefront,
                   label: 'Cash',
-                  onTap: () {
-                    Navigator.pushReplacement(
+                  onTap: () async {
+                    final nextOrderNumber =
+                        await _saveOrderToFirestore(cartItems, orderType);
+                    Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ReceiptScreen(cartItems: cartItems),
+                        builder: (_) => ReceiptScreen(
+                          cartItems: cartItems,
+                          orderType: orderType,
+                          orderNumber: nextOrderNumber,
+                          
+                        ),
                       ),
                     );
                   },
@@ -50,11 +109,17 @@ class PaymentMethodScreen extends StatelessWidget {
                 _PaymentOption(
                   icon: Icons.qr_code_2,
                   label: 'Card or Scan QR',
-                  onTap: () {
-                    Navigator.pushReplacement(
+                  onTap: () async {
+                    final nextOrderNumber =
+                        await _saveOrderToFirestore(cartItems, orderType);
+                    Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ReceiptScreen(cartItems: cartItems),
+                        builder: (_) => ReceiptScreen(
+                          cartItems: cartItems,
+                          orderType: orderType,
+                          orderNumber: nextOrderNumber,
+                        ),
                       ),
                     );
                   },

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../theme/app_colors.dart';
 import 'welcome_screen.dart';
-import 'receipt_screen.dart'; // Add this import for ReceiptScreen
+import 'receipt_screen.dart'; 
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
@@ -21,6 +21,7 @@ class _StaffScreenState extends State<StaffScreen> {
   bool _showUserManager = false;
   bool _showOrdersManager = false;
   String? _selectedUserDocId;
+  int? _selectedOrderIndex;
 
   void _showManageOrders() {
     setState(() {
@@ -47,6 +48,8 @@ class _StaffScreenState extends State<StaffScreen> {
       _selectedUserDocId = null;
     });
   }
+
+  
 
   Future<void> _addUser() async {
     final emailController = TextEditingController();
@@ -161,8 +164,10 @@ class _StaffScreenState extends State<StaffScreen> {
               ],
             ),
             child: StreamBuilder<QuerySnapshot>(
-              stream:
-                  FirebaseFirestore.instance.collection('orders').snapshots(),
+              stream: FirebaseFirestore.instance
+                  .collection('orders')
+                  .orderBy('orderNumber', descending: true)
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
@@ -177,8 +182,9 @@ class _StaffScreenState extends State<StaffScreen> {
                   itemBuilder: (context, index) {
                     final data = docs[index].data() as Map<String, dynamic>;
                     final orderId = docs[index].id;
-                    final customer = data['customer'] ?? 'Unknown';
-                    final total = data['total'] ?? '';
+                    final orderNumber = data['orderNumber'] ?? 0;
+                    final orderType = data['orderType'] ?? 'Unknown';
+                    final total = data['total'];
                     final date = data['date'] ?? '';
                     final cartItems = (data['cartItems'] as List<dynamic>?)
                             ?.map<Map<String, dynamic>>((item) {
@@ -209,24 +215,52 @@ class _StaffScreenState extends State<StaffScreen> {
                         [];
 
                     return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedOrderIndex = index;
+                        });
+                      },
                       onDoubleTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ReceiptScreen(cartItems: cartItems, showDoneButton: false),
+                            builder: (_) => ReceiptScreen(
+                              cartItems: cartItems,
+                              orderType: orderType,
+                              orderNumber: orderNumber,
+                              showDoneButton: false,
+                            ),
                           ),
                         );
                       },
-                      child: ListTile(
-                        title: Text('Order #$orderId'),
-                        subtitle: Text('Customer: $customer\nDate: $date'),
-                        trailing: Text(
-                          total != '' ? '₱$total' : '',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.ease,
+                        margin: const EdgeInsets.symmetric(
+                            vertical: 4, horizontal: 0),
+                        decoration: BoxDecoration(
+                          color: _selectedOrderIndex == index
+                              ? Colors.pink[50]
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          border: _selectedOrderIndex == index
+                              ? Border.all(color: AppColors.pink700, width: 2)
+                              : null,
                         ),
-                        
+                        child: ListTile(
+                          title: Text(
+                              'Order #${orderNumber.toString().padLeft(5, '0')}'),
+                          subtitle: Text('Type: $orderType\nDate: $date'),
+                          trailing: Text(
+                            total != null
+                                ? '₱${(total is int ? total.toDouble() : total as double).toStringAsFixed(2)}'
+                                : '',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ),
                     );
+                    
                   },
                 );
               },

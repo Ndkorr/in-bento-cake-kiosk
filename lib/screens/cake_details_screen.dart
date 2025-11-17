@@ -57,6 +57,9 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
 
   List<Map<String, dynamic>> _cartItems = [];
 
+  String? _dedication;
+  bool _showDedicationOverlay = false;
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +79,27 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       parent: _slideController,
       curve: Curves.easeOutCubic,
     ));
+  }
+
+  void _showDedicationOverlayScreen() {
+    setState(() {
+      _showDedicationOverlay = true;
+      _showLayerSelection = false;
+      _showFillingSelection = false;
+      _showFrostingSelection = false;
+      _showToppingSelection = false;
+      _showShapeSelection = false;
+      _showFlavorSelection = false;
+    });
+    _slideController.forward();
+  }
+
+  void _hideDedicationOverlayScreen() {
+    _slideController.reverse().then((_) {
+      setState(() {
+        _showDedicationOverlay = false;
+      });
+    });
   }
 
   void _resetAllSelections() {
@@ -200,7 +224,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
 
           // If cart item was returned, add it to cart
           if (cartItem != null && mounted) {
-            // Add cake information to cart item
+            cartItem['dedication'] = _dedication;
             cartItem['cakeName'] = widget.cake['name'];
             cartItem['cakeImage'] = widget.cake['image'];
             cartItem['cakePrice'] = widget.cake['price'];
@@ -475,8 +499,11 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         },
         {
           'title': 'DEDICATION',
-          'subtitle': 'PERSONALIZED',
-          'clickable': 'false'
+          'subtitle': _dedication ?? 'PERSONALIZED',
+          'clickable': 'true',
+          'type': 'dedication',
+          'completed':
+              (_dedication != null && _dedication!.isNotEmpty).toString(),
         },
       ];
     } else if (cakeName == 'Combo C') {
@@ -515,8 +542,11 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         },
         {
           'title': 'DEDICATION',
-          'subtitle': 'PERSONALIZED',
-          'clickable': 'false'
+          'subtitle': _dedication ?? 'PERSONALIZED',
+          'clickable': 'true',
+          'type': 'dedication',
+          'completed':
+              (_dedication != null && _dedication!.isNotEmpty).toString(),
         },
       ];
     } else if (cakeName == 'Combo B') {
@@ -555,8 +585,11 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         },
         {
           'title': 'DEDICATION',
-          'subtitle': 'PERSONALIZED',
-          'clickable': 'false'
+          'subtitle': _dedication ?? 'PERSONALIZED',
+          'clickable': 'true',
+          'type': 'dedication',
+          'completed':
+              (_dedication != null && _dedication!.isNotEmpty).toString(),
         },
       ];
     }
@@ -682,6 +715,8 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                                               'true';
                                           _showToppingSelectionScreen(
                                               maxToppings, readOnly);
+                                        } else if (type == 'dedication') {
+                                          _showDedicationOverlayScreen();
                                         }
                                       }
                                     : null,
@@ -711,6 +746,20 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
               ),
             ),
           ),
+          if (_showDedicationOverlay)
+            SlideTransition(
+              position: _slideAnimation,
+              child: _DedicationOverlay(
+                initialDedication: _dedication,
+                onSave: (value) {
+                  setState(() {
+                    _dedication = value;
+                  });
+                  _hideDedicationOverlayScreen();
+                },
+                onBack: _hideDedicationOverlayScreen,
+              ),
+            ),
           // Flavor selection overlay (NEW - for Classic Vanilla)
           if (_showFlavorSelection)
             SlideTransition(
@@ -798,24 +847,24 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
           if (_showToppingDetailPopup)
             _ToppingDetailPopup(onDismiss: _hideDetailPopup),
           if (_showFlavorAfterShape)
-  SlideTransition(
-    position: _slideAnimation,
-    child: _FlavorSelectionOverlay(
-      selectedFlavor: _selectedFlavor,
-      onFlavorSelected: _handleFlavorAfterShapeSelection,
-      onBack: _handleFlavorAfterShapeExit,
-    ),
-  ),
-if (_showFlavorAfterShape && _showErrorPopup)
-  _ErrorPopup(
-    message: _errorMessage,
-    onDismiss: _hideErrorPopup,
-  ),
-if (!_showFlavorAfterShape && _showErrorPopup)
-  _ErrorPopup(
-    message: _errorMessage,
-    onDismiss: _hideErrorPopup,
-  ),
+            SlideTransition(
+              position: _slideAnimation,
+              child: _FlavorSelectionOverlay(
+                selectedFlavor: _selectedFlavor,
+                onFlavorSelected: _handleFlavorAfterShapeSelection,
+                onBack: _handleFlavorAfterShapeExit,
+              ),
+            ),
+          if (_showFlavorAfterShape && _showErrorPopup)
+            _ErrorPopup(
+              message: _errorMessage,
+              onDismiss: _hideErrorPopup,
+            ),
+          if (!_showFlavorAfterShape && _showErrorPopup)
+            _ErrorPopup(
+              message: _errorMessage,
+              onDismiss: _hideErrorPopup,
+            ),
         ],
       ),
     );
@@ -3270,6 +3319,131 @@ class _CartSuccessPopup extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DedicationOverlay extends StatefulWidget {
+  const _DedicationOverlay({
+    required this.initialDedication,
+    required this.onSave,
+    required this.onBack,
+  });
+
+  final String? initialDedication;
+  final ValueChanged<String> onSave;
+  final VoidCallback onBack;
+
+  @override
+  State<_DedicationOverlay> createState() => _DedicationOverlayState();
+}
+
+class _DedicationOverlayState extends State<_DedicationOverlay> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialDedication ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.cream200,
+      child: Stack(
+        children: [
+          const Positioned.fill(child: _TiledIcons()),
+          SafeArea(
+            child: Center(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.all(42),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                color: AppColors.pink700, size: 28),
+                            onPressed: widget.onBack,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Enter Dedication',
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.pink700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: TextField(
+                        controller: _controller,
+                        maxLength: 40,
+                        decoration: InputDecoration(
+                          labelText: 'Dedication Message',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _MenuActionButton(
+                        onTap: () {
+                          widget.onSave(_controller.text.trim());
+                        },
+                        gradient: const LinearGradient(
+                          colors: [AppColors.pink500, AppColors.salmon400],
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            'Save',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

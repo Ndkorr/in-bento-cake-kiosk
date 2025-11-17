@@ -180,6 +180,7 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
                 setModalState(() {});
               },
               totalPrice: _totalPrice,
+              orderType: widget.orderType,
             );
           },
         );
@@ -733,6 +734,7 @@ class _CartOverlay extends StatefulWidget {
     required this.onRemoveCustomCake,
     required this.onUpdateCustomCakeQuantity,
     required this.totalPrice,
+    required this.orderType,
   });
 
   final Map<int, int> cart;
@@ -742,6 +744,7 @@ class _CartOverlay extends StatefulWidget {
   final Function(int) onRemoveCustomCake;
   final Function(int, int) onUpdateCustomCakeQuantity;
   final double totalPrice;
+  final String orderType;
 
   @override
   State<_CartOverlay> createState() => _CartOverlayState();
@@ -1048,7 +1051,10 @@ class _CartOverlayState extends State<_CartOverlay>
                                             MaterialPageRoute(
                                               builder: (_) =>
                                                   PaymentMethodScreen(
-                                                      cartItems: cartItems),
+                                                cartItems: cartItems,
+                                                orderType: widget
+                                                    .orderType, 
+                                              ),
                                             ),
                                           );
                                         },
