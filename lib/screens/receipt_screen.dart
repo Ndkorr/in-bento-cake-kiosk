@@ -6,12 +6,14 @@ import 'dart:ui' as ui;
 import 'dart:typed_data';
 // ignore: depend_on_referenced_packages
 import 'package:image/image.dart' as img;
+import 'thank_you_screen.dart';
 
 class ReceiptScreen extends StatefulWidget {
   final List<Map<String, dynamic>> cartItems;
   final String orderType;
   final int? orderNumber;
   final bool showDoneButton;
+  final bool fromStaff;
 
   const ReceiptScreen({
     super.key,
@@ -19,6 +21,7 @@ class ReceiptScreen extends StatefulWidget {
     required this.orderType,
     this.orderNumber,
     this.showDoneButton = true,
+    this.fromStaff = false,
   });
 
   @override
@@ -128,7 +131,22 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
-      appBar: AppBar(title: const Text('Receipt')),
+      appBar: AppBar(
+        title: const Text('Receipt'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (widget.fromStaff) {
+              Navigator.of(context).pop(); // Go back to staff panel
+            } else {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const ThankYouScreen()),
+                (route) => false,
+              );
+            }
+          },
+        ),
+      ),
       body: Stack(
         children: [
           Center(
@@ -414,7 +432,11 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                     if (widget.showDoneButton)
                       ElevatedButton(
                         onPressed: () {
-                          Navigator.popUntil(context, (route) => route.isFirst);
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                                builder: (_) => const ThankYouScreen()),
+                            (route) => false,
+                          );
                         },
                         child: const Text('Done'),
                       ),

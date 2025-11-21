@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../theme/app_colors.dart';
 import 'welcome_screen.dart';
-import 'receipt_screen.dart'; 
+import 'receipt_screen.dart';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:intl/intl.dart';
 
 class StaffScreen extends StatefulWidget {
   const StaffScreen({super.key});
@@ -22,6 +23,25 @@ class _StaffScreenState extends State<StaffScreen> {
   bool _showOrdersManager = false;
   String? _selectedUserDocId;
   int? _selectedOrderIndex;
+  bool _showSalesDetails = false;
+
+  List<FlSpot> _salesSpots = [];
+  List<FlSpot> _targetSaleSpots = [];
+  List<String> _salesLabels = [];
+  bool _loadingSales = false;
+
+  String _salesFilter = 'days';
+  List<String> _allCakeNames = [];
+  List<String> _selectedCakeNames = [];
+
+  double? _targetSale;
+  bool _loadingTargetSale = false;
+  String? _currentTargetDate;
+
+  int? _selectedSalesIndex;
+
+  double _todaySales = 0.0;
+  double _todayTarget = 0.0;
 
   void _showManageOrders() {
     setState(() {
@@ -48,8 +68,6 @@ class _StaffScreenState extends State<StaffScreen> {
       _selectedUserDocId = null;
     });
   }
-
-  
 
   Future<void> _addUser() async {
     final emailController = TextEditingController();
@@ -138,8 +156,739 @@ class _StaffScreenState extends State<StaffScreen> {
     }
   }
 
+  String _getCurrentTargetDate() {
+    // Use the first visible period in the chart, fallback to today
+    if (_salesLabels.isNotEmpty) {
+      return _salesLabels.first;
+    }
+    DateTime now = DateTime.now();
+    switch (_salesFilter) {
+      case 'year':
+        return DateFormat('yyyy').format(now);
+      case 'months':
+        return DateFormat('yyyy-MM').format(now);
+      case 'days':
+      default:
+        return DateFormat('yyyy-MM-dd').format(now);
+    }
+  }
+
+  Future<void> _fetchTargetSaleSpots() async {
+    _targetSaleSpots = [];
+    final periodCollection = FirebaseFirestore.instance
+        .collection('settings')
+        .doc('targetSales')
+        .collection('periods');
+
+    // Fetch all daily targets at once
+    final allDocs = await periodCollection.get();
+    final Map<String, double> dailyTargets = {};
+    for (var doc in allDocs.docs) {
+      final dateStr = doc.id; // 'yyyy-MM-dd'
+      final value = (doc.data()['value'] as num?)?.toDouble() ?? 0.0;
+      dailyTargets[dateStr] = value;
+    }
+
+    for (int i = 0; i < _salesLabels.length; i++) {
+      final label = _salesLabels[i];
+      double target = 0.0;
+
+      if (_salesFilter == 'days') {
+        // Direct match
+        target = dailyTargets[label] ?? 0.0;
+      } else if (_salesFilter == 'months') {
+        // Sum all daily targets in this month
+        target = dailyTargets.entries
+            .where((e) => e.key.startsWith(label)) // label is 'yyyy-MM'
+            .fold(0.0, (sum, e) => sum + e.value);
+      } else if (_salesFilter == 'year') {
+        // Sum all daily targets in this year
+        target = dailyTargets.entries
+            .where((e) => e.key.startsWith(label)) // label is 'yyyy'
+            .fold(0.0, (sum, e) => sum + e.value);
+      }
+
+      _targetSaleSpots.add(FlSpot(i.toDouble(), target));
+    }
+    setState(() {});
+  }
+
+  // Fetch target sale for current period from Firestore
+  Future<void> _fetchTargetSale({int? forIndex}) async {
+    setState(() => _loadingTargetSale = true);
+    String period;
+    if (forIndex != null &&
+        _salesLabels.isNotEmpty &&
+        forIndex < _salesLabels.length) {
+      period = _salesLabels[forIndex];
+    } else {
+      period = _getCurrentTargetDate();
+    }
+
+    final periodCollection = FirebaseFirestore.instance
+        .collection('settings')
+        .doc('targetSales')
+        .collection('periods');
+    final allDocs = await periodCollection.get();
+
+    double? target;
+    if (_salesFilter == 'days') {
+      final doc = allDocs.docs.where((d) => d.id == period).isNotEmpty
+          ? allDocs.docs.firstWhere((d) => d.id == period)
+          : null;
+      target = doc != null && doc.data()['value'] != null
+          ? (doc.data()['value'] as num).toDouble()
+          : null;
+    } else if (_salesFilter == 'months') {
+      target = allDocs.docs.where((d) => d.id.startsWith(period)).fold(0.0,
+          (sum, d) => sum! + ((d.data()['value'] as num?)?.toDouble() ?? 0.0));
+      if (target == 0.0) target = null;
+    } else if (_salesFilter == 'year') {
+      target = allDocs.docs.where((d) => d.id.startsWith(period)).fold(0.0,
+          (sum, d) => sum! + ((d.data()['value'] as num?)?.toDouble() ?? 0.0));
+      if (target == 0.0) target = null;
+    }
+
+    setState(() {
+      _currentTargetDate = period;
+      _targetSale = target;
+      _loadingTargetSale = false;
+    });
+  }
+
+  // Edit target sale dialog for current period
+  Future<void> _editTargetSaleDialog() async {
+  DateTime selectedDate = DateTime.now();
+  double? targetValue;
+
+  // Show date picker
+  final picked = await showDatePicker(
+    context: context,
+    initialDate: selectedDate,
+    firstDate: DateTime(2020),
+    lastDate: DateTime(2100),
+  );
+  if (picked == null) return;
+
+  selectedDate = picked;
+
+  // Fetch existing target for that date
+  final doc = await FirebaseFirestore.instance
+      .collection('settings')
+      .doc('targetSales')
+      .collection('periods')
+      .doc(DateFormat('yyyy-MM-dd').format(selectedDate))
+      .get();
+  targetValue = (doc.exists && doc.data()?['value'] != null)
+      ? (doc.data()!['value'] as num).toDouble()
+      : null;
+
+  final controller = TextEditingController(
+    text: targetValue?.toStringAsFixed(2) ?? '',
+  );
+
+  final result = await showDialog<double>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Set Target Sale for ${DateFormat('yyyy-MM-dd').format(selectedDate)}'),
+      content: TextField(
+        controller: controller,
+        keyboardType: TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'Target Sale (₱)',
+          hintText: 'Enter target sale amount',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final value = double.tryParse(controller.text);
+            if (value != null && value > 0) {
+              Navigator.pop(context, value);
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+  if (result != null) {
+    await FirebaseFirestore.instance
+        .collection('settings')
+        .doc('targetSales')
+        .collection('periods')
+        .doc(DateFormat('yyyy-MM-dd').format(selectedDate))
+        .set({'value': result});
+    await _fetchTargetSale();
+  }
+}
+
+  // Fetch all unique cake names from orders
+  Future<void> _fetchAllCakeNames() async {
+    final snapshot =
+        await FirebaseFirestore.instance.collection('orders').get();
+    final Set<String> cakeNames = {};
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final cartItems = (data['cartItems'] as List<dynamic>? ?? []);
+      for (var item in cartItems) {
+        final name = (item as Map<String, dynamic>)['name'];
+        if (name is String) cakeNames.add(name);
+      }
+    }
+    setState(() {
+      _allCakeNames = cakeNames.toList()..sort();
+      if (_selectedCakeNames.isEmpty) {
+        _selectedCakeNames = List.from(_allCakeNames);
+      }
+    });
+  }
+
+  // Fetch sales data from Firestore and prepare chart data (by day)
+  Future<void> _fetchSalesData() async {
+    setState(() {
+      _loadingSales = true;
+    });
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('orders')
+        .orderBy('date')
+        .get();
+
+    Map<String, double> salesMap = {};
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final dateStr = data['date'];
+      final cartItems = (data['cartItems'] as List<dynamic>? ?? []);
+      double filteredTotal = 0.0;
+
+      for (var item in cartItems) {
+        final itemMap = item as Map<String, dynamic>;
+        final name = itemMap['name'];
+        final price = (itemMap['price'] is int)
+            ? (itemMap['price'] as int).toDouble()
+            : (itemMap['price'] as double? ?? 0.0);
+        final qty = (itemMap['quantity'] as int? ?? 1);
+
+        if ((_selectedCakeNames ?? []).contains(name)) {
+          filteredTotal += price * qty;
+        }
+      }
+
+      if (filteredTotal == 0) continue;
+
+      DateTime? date;
+      if (dateStr is String) {
+        try {
+          date = DateTime.parse(dateStr);
+        } catch (_) {
+          try {
+            date = DateFormat('MM/dd/yyyy').parse(dateStr);
+          } catch (_) {}
+        }
+      } else if (dateStr is Timestamp) {
+        date = dateStr.toDate();
+      }
+
+      if (date != null) {
+        String label;
+        switch (_salesFilter) {
+          case 'months':
+            label = DateFormat('yyyy-MM').format(date);
+            break;
+          case 'year':
+            label = DateFormat('yyyy').format(date);
+            break;
+          case 'days':
+          default:
+            label = DateFormat('yyyy-MM-dd').format(date);
+        }
+        salesMap[label] = (salesMap[label] ?? 0) + filteredTotal;
+      }
+    }
+
+    final sortedKeys = salesMap.keys.toList()..sort((a, b) => a.compareTo(b));
+    final spots = <FlSpot>[];
+    final labels = <String>[];
+    for (int i = 0; i < sortedKeys.length; i++) {
+      spots.add(FlSpot(i.toDouble(), salesMap[sortedKeys[i]] ?? 0));
+      labels.add(sortedKeys[i]);
+    }
+
+    setState(() {
+      _salesSpots = spots;
+      _salesLabels = labels;
+      _loadingSales = false;
+    });
+
+    // Fetch target sale spots for the graph after sales data is ready
+    await _fetchTargetSaleSpots();
+  }
+
+  // Show filter dialog for cake names
+  Future<void> _showCakeFilterDialog() async {
+    await _fetchAllCakeNames();
+    final List<String> tempSelected = List.from(_selectedCakeNames);
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Filter by Cake Name'),
+          content: SizedBox(
+            width: 300,
+            child: ListView(
+              shrinkWrap: true,
+              children: _allCakeNames.map((cake) {
+                return CheckboxListTile(
+                  value: tempSelected.contains(cake),
+                  title: Text(cake),
+                  onChanged: (checked) {
+                    if (checked == true) {
+                      tempSelected.add(cake);
+                    } else {
+                      tempSelected.remove(cake);
+                    }
+                    // Force rebuild
+                    (context as Element).markNeedsBuild();
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (tempSelected.isEmpty) {
+                  // Prevent empty selection
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Select at least one cake.')),
+                  );
+                  return;
+                }
+                Navigator.pop(context, tempSelected);
+              },
+              child: const Text('Apply'),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != null && result.isNotEmpty) {
+      setState(() {
+        _selectedCakeNames = result;
+        
+      });
+      await _fetchSalesData();
+      await _fetchTodaySalesAndTarget();
+    }
+  }
+
+  Future<void> _fetchTodaySalesAndTarget() async {
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    // Fetch today's sales
+    final snapshot = await FirebaseFirestore.instance
+        .collection('orders')
+        .where('date', isGreaterThanOrEqualTo: todayStr)
+        .get();
+
+    double sales = 0.0;
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final cartItems = (data['cartItems'] as List<dynamic>? ?? []);
+      for (var item in cartItems) {
+        final itemMap = item as Map<String, dynamic>;
+        final name = itemMap['name'];
+        final price = (itemMap['price'] is int)
+            ? (itemMap['price'] as int).toDouble()
+            : (itemMap['price'] as double? ?? 0.0);
+        final qty = (itemMap['quantity'] as int? ?? 1);
+        if ((_selectedCakeNames ?? []).contains(name)) {
+          sales += price * qty;
+        }
+      }
+    }
+
+    // Fetch today's target
+    final targetDoc = await FirebaseFirestore.instance
+        .collection('settings')
+        .doc('targetSales')
+        .collection('periods')
+        .doc(todayStr)
+        .get();
+    final target = (targetDoc.exists && targetDoc.data()?['value'] != null)
+        ? (targetDoc.data()!['value'] as num).toDouble()
+        : 0.0;
+
+    setState(() {
+      _todaySales = sales;
+      _todayTarget = target;
+    });
+  }
+
+  // Call fetch when opening sales details
+  void _showSalesDetailsScreen() {
+    setState(() {
+      _showSalesDetails = true;
+    });
+    _fetchSalesData();
+    _fetchTargetSale();
+  }
+
+  Widget _buildFilterButton(String value, String label) {
+    final isSelected = _salesFilter == value;
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: isSelected ? AppColors.pink700 : Colors.white,
+        foregroundColor: isSelected ? Colors.white : AppColors.pink700,
+        side: BorderSide(color: AppColors.pink700),
+      ),
+      onPressed: () async {
+        if (_salesFilter != value) {
+          setState(() {
+            _salesFilter = value;
+          });
+          await _fetchSalesData();
+          await _fetchTargetSale();
+        }
+      },
+      child: Text(label),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _allCakeNames = [];
+    _selectedCakeNames = []; 
+    _fetchAllCakeNames();
+    _fetchTargetSale();
+    _fetchTodaySalesAndTarget(); 
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_showSalesDetails) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Total Sales'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => setState(() => _showSalesDetails = false),
+          ),
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final double maxWidth = constraints.maxWidth < 600
+                ? constraints.maxWidth * 0.98
+                : constraints.maxWidth * 0.6;
+            final double cardWidth = maxWidth.clamp(320, 900);
+
+            return Center(
+              child: SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: cardWidth,
+                    minWidth: 280,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Total sales',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 22,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (_loadingTargetSale)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 8.0),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Text(
+                              _targetSale != null
+                                  ? 'Target sale for $_currentTargetDate: ₱${_targetSale!.toStringAsFixed(2)}'
+                                  : 'Target sale for $_currentTargetDate: Not set',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.teal,
+                              ),
+                            ),
+                          ),
+
+                        if (_selectedCakeNames.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Text(
+                              _selectedCakeNames.length == _allCakeNames.length
+                                  ? 'All cakes'
+                                  : _selectedCakeNames.join(', '),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black54,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        // Filter buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildFilterButton('days', 'Days'),
+                            const SizedBox(width: 8),
+                            _buildFilterButton('months', 'Months'),
+                            const SizedBox(width: 8),
+                            _buildFilterButton('year', 'Year'),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 220,
+                          width: double.infinity,
+                          child: _loadingSales
+                              ? const Center(child: CircularProgressIndicator())
+                              : _salesSpots.isEmpty
+                                  ? const Center(child: Text('No sales data'))
+          : Builder(
+              builder: (context) {
+                // Calculate minY and maxY outside the widget tree
+                final allYValues = [
+                  ..._salesSpots.map((e) => e.y),
+                  ..._targetSaleSpots.map((e) => e.y),
+                ];
+                final minY = allYValues.isNotEmpty
+                    ? allYValues.reduce((a, b) => a < b ? a : b)
+                    : 0.0;
+                final maxY = allYValues.isNotEmpty
+                    ? allYValues.reduce((a, b) => a > b ? a : b)
+                    : 30.0;
+
+                return LineChart(
+                  LineChartData(
+                    lineTouchData: LineTouchData(
+                                              touchCallback:
+                                                  (FlTouchEvent event,
+                                                      LineTouchResponse?
+                                                          touchResponse) async {
+                                                if (touchResponse != null &&
+                                                    touchResponse
+                                                            .lineBarSpots !=
+                                                        null &&
+                                                    touchResponse.lineBarSpots!
+                                                        .isNotEmpty) {
+                                                  final idx = touchResponse
+                                                      .lineBarSpots!.first.x
+                                                      .toInt();
+                                                  setState(() {
+                                                    _selectedSalesIndex = idx;
+                                                  });
+                                                  await _fetchTargetSale(
+                                                      forIndex: idx);
+                                                }
+                                              },
+                                            ),
+                    gridData: FlGridData(show: true),
+                    titlesData: FlTitlesData(
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 48,
+                          getTitlesWidget: (value, meta) {
+                            if (_salesSpots.isEmpty)
+                              return const SizedBox.shrink();
+
+                            final minYLocal = _salesSpots
+                                .map((e) => e.y)
+                                .reduce((a, b) => a < b ? a : b);
+                            final maxYLocal = _salesSpots
+                                .map((e) => e.y)
+                                .reduce((a, b) => a > b ? a : b);
+
+                            // If min and max are the same, just show that value
+                            if ((maxYLocal - minYLocal).abs() < 1e-2) {
+                              if ((value - minYLocal).abs() < 1e-2) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8.0),
+                                  child: Text(
+                                    value.toInt().toString(),
+                                    style: const TextStyle(fontSize: 12),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            }
+
+                            // Always show 5 evenly spaced ticks for all filters
+                            final step = (maxYLocal - minYLocal) / 4;
+                            final ticks = List.generate(5, (i) => minYLocal + step * i);
+
+                            // Show only if value is close to a tick (avoid floating point issues)
+                            for (final tick in ticks) {
+                              if ((value - tick).abs() < step / 2) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8.0),
+                                  child: Text(
+                                    tick.round().toString(),
+                                    style: const TextStyle(fontSize: 12),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                );
+                              }
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 48,
+                          interval: (_salesLabels.length / 2)
+                              .ceilToDouble()
+                              .clamp(1, 999),
+                          getTitlesWidget: (value, meta) {
+                            int idx = value.toInt();
+                            // Only show first, last, and every Nth label
+                            if (_salesLabels.isEmpty)
+                              return const SizedBox.shrink();
+                            if (idx == 0 ||
+                                idx == _salesLabels.length - 1 ||
+                                idx % ((_salesLabels.length / 4).ceil()) == 0) {
+                              final date = DateTime.tryParse(_salesLabels[idx]);
+                              return Text(
+                                date != null
+                                    ? DateFormat('d MMM').format(date)
+                                    : _salesLabels[idx],
+                                style: const TextStyle(fontSize: 11),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+                      rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
+                      topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    minX: 0,
+                    maxX: _salesSpots.isNotEmpty
+                        ? (_salesSpots.length - 1).toDouble()
+                        : 4,
+                    minY: minY > 0 ? minY - 10 : 0,
+                    maxY: maxY + 10,
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: _salesSpots,
+                        isCurved: true,
+                        color: AppColors.pink700,
+                        barWidth: 3,
+                        dotData: const FlDotData(show: true),
+                      ),
+                      if (_targetSaleSpots.isNotEmpty)
+                        LineChartBarData(
+                          spots: _targetSaleSpots,
+                          isCurved: false,
+                          color: Colors.teal,
+                          barWidth: 2,
+                          dotData: const FlDotData(show: false),
+                          dashArray: [8, 4],
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+),
+                        const SizedBox(height: 24),
+                        LayoutBuilder(
+                          builder: (context, btnConstraints) {
+                            if (btnConstraints.maxWidth < 500) {
+                              return Column(
+                                children: [
+                                  AnimatedHoverButton(
+                                    label: 'Filter',
+                                    icon: Icons.filter_alt,
+                                    onTap: _showCakeFilterDialog,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  AnimatedHoverButton(
+                                    label: 'Edit target sale',
+                                    icon: Icons.edit,
+                                    onTap: _editTargetSaleDialog,
+                                  ),
+                                ],
+                              );
+                            }
+                            return Row(
+                              children: [
+                                Expanded(
+                                  child: AnimatedHoverButton(
+                                    label: 'Filter',
+                                    icon: Icons.filter_alt,
+                                    onTap: _showCakeFilterDialog,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: AnimatedHoverButton(
+                                    label: 'Edit target sale',
+                                    icon: Icons.edit,
+                                    onTap: _editTargetSaleDialog,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () =>
+                              setState(() => _showSalesDetails = false),
+                          child: const Text('Close'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
     if (_showOrdersManager) {
       return Scaffold(
         appBar: AppBar(
@@ -229,6 +978,7 @@ class _StaffScreenState extends State<StaffScreen> {
                               orderType: orderType,
                               orderNumber: orderNumber,
                               showDoneButton: false,
+                              fromStaff: true,
                             ),
                           ),
                         );
@@ -260,7 +1010,6 @@ class _StaffScreenState extends State<StaffScreen> {
                         ),
                       ),
                     );
-                    
                   },
                 );
               },
@@ -498,39 +1247,16 @@ class _StaffScreenState extends State<StaffScreen> {
       ),
       body: Stack(
         children: [
-          const TiledIcons(), // Moving icons background
+          const TiledIcons(),
           Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [
-                // Pie charts row with hover
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     Expanded(
-                      child: _HoverPieCard(
-                        title: 'Total Sales',
-                        pie: _SamplePieChart(
-                          sections: [
-                            PieChartSectionData(
-                              color: AppColors.pink500,
-                              value: 60,
-                              title: 'Cakes',
-                              radius: 48,
-                              titleStyle: const TextStyle(
-                                  fontSize: 12, color: Colors.white),
-                            ),
-                            PieChartSectionData(
-                              color: AppColors.salmon400,
-                              value: 40,
-                              title: 'Drinks',
-                              radius: 48,
-                              titleStyle: const TextStyle(
-                                  fontSize: 12, color: Colors.white),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: _buildTodaySalesPieLive(),
                     ),
                     const SizedBox(width: 24),
                     Expanded(
@@ -593,13 +1319,102 @@ class _StaffScreenState extends State<StaffScreen> {
       ),
     );
   }
+  Widget _buildTodaySalesPieLive() {
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('date', isGreaterThanOrEqualTo: todayStr)
+          .snapshots(),
+      builder: (context, orderSnapshot) {
+        if (!orderSnapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        double sales = 0.0;
+        for (var doc in orderSnapshot.data!.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final cartItems = (data['cartItems'] as List<dynamic>? ?? []);
+          for (var item in cartItems) {
+            final itemMap = item as Map<String, dynamic>;
+            final name = itemMap['name'];
+            final price = (itemMap['price'] is int)
+                ? (itemMap['price'] as int).toDouble()
+                : (itemMap['price'] as double? ?? 0.0);
+            final qty = (itemMap['quantity'] as int? ?? 1);
+            if ((_selectedCakeNames ?? []).contains(name)) {
+              sales += price * qty;
+            }
+          }
+        }
+        return StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('settings')
+              .doc('targetSales')
+              .collection('periods')
+              .doc(todayStr)
+              .snapshots(),
+          builder: (context, targetSnapshot) {
+            double target = 0.0;
+            if (targetSnapshot.hasData &&
+                targetSnapshot.data!.exists &&
+                targetSnapshot.data!.data() != null) {
+              final data = targetSnapshot.data!.data() as Map<String, dynamic>;
+              target = (data['value'] as num?)?.toDouble() ?? 0.0;
+            }
+            final achieved = target > 0 ? sales.clamp(0, target) : 0.0;
+            final remaining =
+                target > 0 ? (target - achieved).clamp(0, target) : 0.0;
+            final percent =
+                target > 0 ? (achieved / target * 100).clamp(0, 100) : 0.0;
+
+            return _HoverPieCard(
+              title: 'Total Sales',
+              pie: PieChart(
+                PieChartData(
+                  sections: [
+                    PieChartSectionData(
+                      color: AppColors.pink500,
+                      value: achieved.toDouble(),
+                      title: '${percent.toStringAsFixed(0)}%',
+                      radius: 48,
+                      titleStyle: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    PieChartSectionData(
+                      color: AppColors.salmon400,
+                      value: remaining.toDouble(),
+                      title: '',
+                      radius: 48,
+                    ),
+                  ],
+                  centerSpaceRadius: 24,
+                  sectionsSpace: 2,
+                  borderData: FlBorderData(show: false),
+                ),
+              ),
+              onDoubleTap: _showSalesDetailsScreen,
+              info: 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
+                  'Target: ₱${target.toStringAsFixed(2)}\n'
+                  'Achieved: ${percent.toStringAsFixed(1)}%',
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _HoverPieCard extends StatefulWidget {
   final String title;
   final Widget pie;
+  final VoidCallback? onDoubleTap;
+  final String? info;
 
-  const _HoverPieCard({required this.title, required this.pie});
+  const _HoverPieCard(
+      {required this.title, required this.pie, this.onDoubleTap, this.info,});
 
   @override
   State<_HoverPieCard> createState() => _HoverPieCardState();
@@ -607,6 +1422,24 @@ class _HoverPieCard extends StatefulWidget {
 
 class _HoverPieCardState extends State<_HoverPieCard> {
   bool _hovering = false;
+
+  void _showInfoDialog() {
+    if (widget.info != null) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(widget.title),
+          content: Text(widget.info!),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -620,7 +1453,6 @@ class _HoverPieCardState extends State<_HoverPieCard> {
           clipBehavior: Clip.none,
           alignment: Alignment.bottomCenter,
           children: [
-            // Animated label background
             AnimatedPositioned(
               duration: const Duration(milliseconds: 200),
               curve: Curves.ease,
@@ -633,7 +1465,7 @@ class _HoverPieCardState extends State<_HoverPieCard> {
                   height: 275 + borderExtension,
                   decoration: BoxDecoration(
                     color: AppColors.pink700,
-                    borderRadius: BorderRadius.vertical(
+                    borderRadius: const BorderRadius.vertical(
                       bottom: Radius.circular(28),
                       top: Radius.circular(24),
                     ),
@@ -660,24 +1492,30 @@ class _HoverPieCardState extends State<_HoverPieCard> {
                 ),
               ),
             ),
-            // The card with the pie chart (on top)
             MouseRegion(
               onEnter: (_) => setState(() => _hovering = true),
               onExit: (_) => setState(() => _hovering = false),
-              child: Card(
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                elevation: 6,
-                child: SizedBox(
-                  width: cardWidth,
-                  height: cardHeight,
-                  child: Center(
+              child: GestureDetector(
+                onDoubleTap: widget.onDoubleTap,
+                onLongPress: _showInfoDialog, // Show info on long press
+                child: Tooltip(
+                  message: widget.info ?? '',
+                  child: Card(
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    elevation: 6,
                     child: SizedBox(
-                      height: 180,
-                      width: cardWidth * 0.67, // scale pie chart with card
-                      child: widget.pie,
+                      width: cardWidth,
+                      height: cardHeight,
+                      child: Center(
+                        child: SizedBox(
+                          height: 180,
+                          width: cardWidth * 0.67,
+                          child: widget.pie,
+                        ),
+                      ),
                     ),
                   ),
                 ),

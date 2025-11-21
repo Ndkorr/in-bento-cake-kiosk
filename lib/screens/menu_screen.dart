@@ -181,6 +181,7 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
               },
               totalPrice: _totalPrice,
               orderType: widget.orderType,
+              rootScaffoldMessengerContext: this.context,
             );
           },
         );
@@ -735,6 +736,7 @@ class _CartOverlay extends StatefulWidget {
     required this.onUpdateCustomCakeQuantity,
     required this.totalPrice,
     required this.orderType,
+    required this.rootScaffoldMessengerContext,
   });
 
   final Map<int, int> cart;
@@ -745,6 +747,7 @@ class _CartOverlay extends StatefulWidget {
   final Function(int, int) onUpdateCustomCakeQuantity;
   final double totalPrice;
   final String orderType;
+  final BuildContext rootScaffoldMessengerContext;
 
   @override
   State<_CartOverlay> createState() => _CartOverlayState();
@@ -1046,6 +1049,25 @@ class _CartOverlayState extends State<_CartOverlay>
                                             // Add custom cakes
                                             ...widget.customCakes,
                                           ];
+                                          if (cartItems.isEmpty) {
+                                            Navigator.of(context)
+                                                .pop(); // Close the overlay first
+                                            await Future.delayed(const Duration(
+                                                milliseconds:
+                                                    200)); // Wait for animation
+                                            ScaffoldMessenger.of(
+                                              widget
+                                                  .rootScaffoldMessengerContext,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: const Text(
+                                                    'Your cart is empty! Please add items before checkout.'),
+                                                backgroundColor:
+                                                    Colors.red[400],
+                                              ),
+                                            );
+                                            return;
+                                          }
                                           await Navigator.push(
                                             context,
                                             MaterialPageRoute(
