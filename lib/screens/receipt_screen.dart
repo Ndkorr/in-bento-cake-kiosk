@@ -51,49 +51,101 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     });
   }
 
-  Future<Uint8List> createThumbnail(Uint8List originalBytes) async {
+  Future<Uint8List> createThumbnail(Uint8List originalBytes,
+      {int maxSizeInBytes = 180000}) async {
     final image = img.decodeImage(originalBytes);
-    final thumbnail = img.copyResize(image!, width: 100, height: 100);
-    return Uint8List.fromList(img.encodePng(thumbnail));
+    if (image == null) {
+      return originalBytes;
+    }
+
+    int width = 128;
+    int quality = 80;
+    Uint8List jpgBytes =
+        Uint8List.fromList(img.encodeJpg(image, quality: quality));
+
+    while (jpgBytes.lengthInBytes > maxSizeInBytes &&
+        (width > 32 || quality > 30)) {
+      // Reduce size by lowering width and quality
+      width = (width * 0.7).toInt().clamp(32, width);
+      quality = (quality - 15).clamp(30, quality);
+      final thumb = img.copyResize(image, width: width);
+      jpgBytes = Uint8List.fromList(img.encodeJpg(thumb, quality: quality));
+    }
+
+    // Final guard: if still too large, return an empty byte list to indicate skip.
+    if (jpgBytes.lengthInBytes > maxSizeInBytes) {
+      return Uint8List(0);
+    }
+    return jpgBytes;
   }
+
+
 
   Future<int> _saveOrderToFirestore() async {
     final now = DateTime.now();
 
-    // Process cart items and create thumbnails
-    final cartItemsForFirestore = <Map<String, dynamic>>[];
+    // compute total
+    double total = 0;
     for (final item in widget.cartItems) {
-      final newItem = Map<String, dynamic>.from(item);
-      if (newItem['toppingsImage'] != null &&
-          newItem['toppingsImage'] is Uint8List) {
-        final thumb = await createThumbnail(newItem['toppingsImage']);
-        newItem['toppingsThumbnail'] = thumb;
-      }
-      newItem.remove('toppingsImage');
-      cartItemsForFirestore.add(newItem);
+      final price = (item['price'] is num)
+          ? item['price'].toDouble()
+          : (item['cakePrice'] is num)
+              ? item['cakePrice'].toDouble()
+              : 0.0;
+      final qty = (item['quantity'] is int) ? item['quantity'] : 1;
+      total += price * qty;
     }
 
     final nextOrderNumber = await _getNextOrderNumber();
-    final orderData = {
+
+    // Create minimal order document (keeps this document small)
+    final orderDoc = await FirebaseFirestore.instance.collection('orders').add({
       'orderNumber': nextOrderNumber,
-      'cartItems': cartItemsForFirestore,
-      'total': cartItemsForFirestore.fold<double>(
-        0,
-        (sum, item) {
-          final price = (item['price'] is num)
-              ? item['price'].toDouble()
-              : (item['cakePrice'] is num)
-                  ? item['cakePrice'].toDouble()
-                  : 0.0;
-          final qty = (item['quantity'] is int) ? item['quantity'] : 1;
-          return sum + price * qty;
-        },
-      ),
       'orderType': widget.orderType,
       'date': now.toIso8601String(),
-      // Add more fields as needed, e.g. customer info
-    };
-    await FirebaseFirestore.instance.collection('orders').add(orderData);
+      'total': total,
+      'createdAt': FieldValue.serverTimestamp(),
+      'itemCount': widget.cartItems.length,
+    });
+
+    // Add each cart item as a separate document in subcollection orders/{orderId}/items
+    int idx = 0;
+    for (final item in widget.cartItems) {
+      idx++;
+      final newItem = Map<String, dynamic>.from(item);
+
+      // Create small thumbnail per item (more aggressive target)
+      if (newItem['toppingsImage'] != null &&
+          newItem['toppingsImage'] is Uint8List) {
+        final thumb = await createThumbnail(
+            newItem['toppingsImage'] as Uint8List,
+            maxSizeInBytes: 40000); // target ~40 KB per thumbnail
+        if (thumb.isNotEmpty) {
+          newItem['toppingsThumbnail'] = thumb;
+          newItem['toppingsThumbnailStored'] = true;
+        } else {
+          newItem['toppingsThumbnailStored'] = false;
+        }
+      }
+
+      // Remove raw large fields to avoid accidentally storing them
+      newItem.remove('toppingsImage');
+      newItem.remove('imageBytes');
+      newItem.remove('photo');
+
+      // Add metadata
+      newItem['orderNumber'] = nextOrderNumber;
+      newItem['orderCreatedAt'] = now.toIso8601String();
+      newItem['index'] = idx;
+
+      // Write item as its own document under the order
+      await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(orderDoc.id)
+          .collection('items')
+          .add(newItem);
+    }
+
     return nextOrderNumber;
   }
 

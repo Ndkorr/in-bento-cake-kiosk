@@ -5,6 +5,8 @@ import 'thank_you_screen.dart';
 import 'welcome_screen.dart' show TiledIcons;
 import 'receipt_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:typed_data';
+import 'package:image/image.dart' as img;
 
 class PaymentMethodScreen extends StatelessWidget {
   final List<Map<String, dynamic>> cartItems;
@@ -27,10 +29,31 @@ class PaymentMethodScreen extends StatelessWidget {
     return total;
   }
 
+  Future<Uint8List> _createThumbnail(Uint8List originalBytes,
+      {int maxSizeInBytes = 40000}) async {
+    final image = img.decodeImage(originalBytes);
+    if (image == null) return originalBytes;
+
+    int width = 128;
+    int quality = 80;
+    Uint8List jpg = Uint8List.fromList(img.encodeJpg(image, quality: quality));
+
+    while (jpg.lengthInBytes > maxSizeInBytes && (width > 32 || quality > 30)) {
+      width = (width * 0.7).toInt().clamp(32, width);
+      quality = (quality - 15).clamp(30, quality);
+      final thumb = img.copyResize(image, width: width);
+      jpg = Uint8List.fromList(img.encodeJpg(thumb, quality: quality));
+    }
+
+    if (jpg.lengthInBytes > maxSizeInBytes) return Uint8List(0);
+    return jpg;
+  }
+
   Future<int> _saveOrderToFirestore(
       List<Map<String, dynamic>> cartItems, String orderType) async {
     final counterRef =
         FirebaseFirestore.instance.collection('counters').doc('orders');
+
     final nextOrderNumber =
         await FirebaseFirestore.instance.runTransaction((transaction) async {
       final snapshot = await transaction.get(counterRef);
@@ -48,17 +71,55 @@ class PaymentMethodScreen extends StatelessWidget {
     });
 
     final total = _calculateTotal(cartItems);
-
     final now = DateTime.now();
-    final orderData = {
+
+    // create a minimal order doc to avoid large single-document writes
+    final orderRef = await FirebaseFirestore.instance.collection('orders').add({
       'orderNumber': nextOrderNumber,
-      'cartItems': cartItems,
       'orderType': orderType,
       'total': total,
       'date': now.toIso8601String(),
-      // Add other fields as needed
-    };
-    await FirebaseFirestore.instance.collection('orders').add(orderData);
+      'createdAt': FieldValue.serverTimestamp(),
+      'itemCount': cartItems.length,
+    });
+
+    // write each item into orders/{orderId}/items subcollection
+    int idx = 0;
+    for (final item in cartItems) {
+      idx++;
+      final newItem = Map<String, dynamic>.from(item);
+
+      // compress toppingsImage if present and small enough
+      if (newItem['toppingsImage'] != null &&
+          newItem['toppingsImage'] is Uint8List) {
+        final thumb = await _createThumbnail(
+            newItem['toppingsImage'] as Uint8List,
+            maxSizeInBytes: 40000); // target ~40KB
+        if (thumb.isNotEmpty) {
+          newItem['toppingsThumbnail'] = thumb;
+          newItem['toppingsThumbnailStored'] = true;
+        } else {
+          newItem['toppingsThumbnailStored'] = false;
+        }
+      }
+
+      // remove any large raw fields
+      newItem.remove('toppingsImage');
+      newItem.remove('imageBytes');
+      newItem.remove('photo');
+
+      // add metadata
+      newItem['orderNumber'] = nextOrderNumber;
+      newItem['orderCreatedAt'] = now.toIso8601String();
+      newItem['index'] = idx;
+
+      await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(orderRef.id)
+          .collection('items')
+          .add(newItem);
+    }
+
     return nextOrderNumber;
   }
 
@@ -99,7 +160,6 @@ class PaymentMethodScreen extends StatelessWidget {
                           cartItems: cartItems,
                           orderType: orderType,
                           orderNumber: nextOrderNumber,
-                          
                         ),
                       ),
                     );

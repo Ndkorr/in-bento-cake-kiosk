@@ -69,6 +69,125 @@ class _StaffScreenState extends State<StaffScreen> {
     });
   }
 
+  Future<List<Map<String, dynamic>>> _loadOrderItems(
+      String orderId, Map<String, dynamic> orderData) async {
+    final List<Map<String, dynamic>> items = [];
+
+    // helper to normalize a raw item map into {name, price (double), quantity (int), ...}
+    Map<String, dynamic> _normalize(Map<String, dynamic> raw) {
+      final m = Map<String, dynamic>.from(raw);
+
+      // name fallback chain
+      final name = m['name'] ??
+          m['cakeName'] ??
+          m['title'] ??
+          m['productName'] ??
+          (m['isCustom'] == true ? 'Custom Cake' : 'Item');
+      m['name'] = name;
+
+      // quantity fallback
+      int qty = 1;
+      final qv = m['quantity'] ?? m['qty'] ?? m['count'];
+      if (qv is int) qty = qv;
+      if (qv is String) qty = int.tryParse(qv) ?? 1;
+      if (qv is double) qty = qv.toInt();
+      m['quantity'] = qty;
+
+      // price fallback and computation for custom cakes
+      double price = 0.0;
+      dynamic pv =
+          m['price'] ?? m['cakePrice'] ?? m['unitPrice'] ?? m['totalPrice'];
+      if (pv == null) {
+        // try compute from cakePrice + toppings (if available)
+        final base = m['cakePrice'] ?? m['basePrice'] ?? 0;
+        double baseD = 0;
+        if (base is num) baseD = base.toDouble();
+        if (base is String) baseD = double.tryParse(base) ?? 0;
+        double toppingsSum = 0.0;
+        final toppings = m['toppings'] ?? m['selectedToppings'] ?? m['extras'];
+        if (toppings is List) {
+          for (var t in toppings) {
+            if (t is Map && t['price'] != null) {
+              final tv = t['price'];
+              if (tv is num) toppingsSum += tv.toDouble();
+              if (tv is String) toppingsSum += double.tryParse(tv) ?? 0.0;
+            } else if (t is num) {
+              toppingsSum += t.toDouble();
+            }
+          }
+        }
+        price = baseD + toppingsSum;
+      } else {
+        if (pv is num) price = pv.toDouble();
+        if (pv is String) price = double.tryParse(pv) ?? 0.0;
+        if (pv is List) {
+          // sometimes Firestore returns bytes for blobs; ignore in price context
+          price = 0.0;
+        }
+      }
+      m['price'] = price;
+
+      // Normalize thumbnail if present (keep existing logic)
+      if (m['toppingsThumbnail'] != null) {
+        final thumb = m['toppingsThumbnail'];
+        if (thumb is String) {
+          try {
+            m['toppingsThumbnail'] = base64Decode(thumb);
+          } catch (_) {
+            m['toppingsThumbnail'] = Uint8List.fromList(thumb.codeUnits);
+          }
+        } else if (thumb is List) {
+          m['toppingsThumbnail'] = Uint8List.fromList(thumb.cast<int>());
+        } else if (thumb.runtimeType.toString() == '_Blob') {
+          m['toppingsThumbnail'] = thumb.bytes;
+        }
+      }
+
+      return m;
+    }
+
+    // If the older single-document format exists, use it
+    if (orderData.containsKey('cartItems') && orderData['cartItems'] is List) {
+      final raw = orderData['cartItems'] as List;
+      for (var item in raw) {
+        final map = Map<String, dynamic>.from(item as Map);
+        items.add(_normalize(map));
+      }
+      return items;
+    }
+
+    // Otherwise load items from subcollection orders/{orderId}/items
+    final snapshot = await FirebaseFirestore.instance
+        .collection('orders')
+        .doc(orderId)
+        .collection('items')
+        .get();
+    for (var doc in snapshot.docs) {
+      final map = Map<String, dynamic>.from(doc.data());
+      items.add(_normalize(map));
+    }
+    return items;
+  }
+
+  Future<double> _computeSalesFromDocs(List<QueryDocumentSnapshot> docs) async {
+    double sales = 0.0;
+    for (var doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final items = await _loadOrderItems(doc.id, data);
+      for (var item in items) {
+        final name = item['name'];
+        final price = (item['price'] is int)
+            ? (item['price'] as int).toDouble()
+            : (item['price'] as double? ?? 0.0);
+        final qty = (item['quantity'] as int? ?? 1);
+        if (_selectedCakeNames.isEmpty || _selectedCakeNames.contains(name)) {
+          sales += price * qty;
+        }
+      }
+    }
+    return sales;
+  }
+
   Future<void> _addUser() async {
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
@@ -258,74 +377,75 @@ class _StaffScreenState extends State<StaffScreen> {
 
   // Edit target sale dialog for current period
   Future<void> _editTargetSaleDialog() async {
-  DateTime selectedDate = DateTime.now();
-  double? targetValue;
+    DateTime selectedDate = DateTime.now();
+    double? targetValue;
 
-  // Show date picker
-  final picked = await showDatePicker(
-    context: context,
-    initialDate: selectedDate,
-    firstDate: DateTime(2020),
-    lastDate: DateTime(2100),
-  );
-  if (picked == null) return;
+    // Show date picker
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
 
-  selectedDate = picked;
+    selectedDate = picked;
 
-  // Fetch existing target for that date
-  final doc = await FirebaseFirestore.instance
-      .collection('settings')
-      .doc('targetSales')
-      .collection('periods')
-      .doc(DateFormat('yyyy-MM-dd').format(selectedDate))
-      .get();
-  targetValue = (doc.exists && doc.data()?['value'] != null)
-      ? (doc.data()!['value'] as num).toDouble()
-      : null;
-
-  final controller = TextEditingController(
-    text: targetValue?.toStringAsFixed(2) ?? '',
-  );
-
-  final result = await showDialog<double>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Set Target Sale for ${DateFormat('yyyy-MM-dd').format(selectedDate)}'),
-      content: TextField(
-        controller: controller,
-        keyboardType: TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: 'Target Sale (₱)',
-          hintText: 'Enter target sale amount',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final value = double.tryParse(controller.text);
-            if (value != null && value > 0) {
-              Navigator.pop(context, value);
-            }
-          },
-          child: const Text('Save'),
-        ),
-      ],
-    ),
-  );
-  if (result != null) {
-    await FirebaseFirestore.instance
+    // Fetch existing target for that date
+    final doc = await FirebaseFirestore.instance
         .collection('settings')
         .doc('targetSales')
         .collection('periods')
         .doc(DateFormat('yyyy-MM-dd').format(selectedDate))
-        .set({'value': result});
-    await _fetchTargetSale();
+        .get();
+    targetValue = (doc.exists && doc.data()?['value'] != null)
+        ? (doc.data()!['value'] as num).toDouble()
+        : null;
+
+    final controller = TextEditingController(
+      text: targetValue?.toStringAsFixed(2) ?? '',
+    );
+
+    final result = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+            'Set Target Sale for ${DateFormat('yyyy-MM-dd').format(selectedDate)}'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Target Sale (₱)',
+            hintText: 'Enter target sale amount',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = double.tryParse(controller.text);
+              if (value != null && value > 0) {
+                Navigator.pop(context, value);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result != null) {
+      await FirebaseFirestore.instance
+          .collection('settings')
+          .doc('targetSales')
+          .collection('periods')
+          .doc(DateFormat('yyyy-MM-dd').format(selectedDate))
+          .set({'value': result});
+      await _fetchTargetSale();
+    }
   }
-}
 
   // Fetch all unique cake names from orders
   Future<void> _fetchAllCakeNames() async {
@@ -334,9 +454,9 @@ class _StaffScreenState extends State<StaffScreen> {
     final Set<String> cakeNames = {};
     for (var doc in snapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
-      final cartItems = (data['cartItems'] as List<dynamic>? ?? []);
-      for (var item in cartItems) {
-        final name = (item as Map<String, dynamic>)['name'];
+      final items = await _loadOrderItems(doc.id, data);
+      for (var item in items) {
+        final name = item['name'];
         if (name is String) cakeNames.add(name);
       }
     }
@@ -364,18 +484,19 @@ class _StaffScreenState extends State<StaffScreen> {
     for (var doc in snapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
       final dateStr = data['date'];
-      final cartItems = (data['cartItems'] as List<dynamic>? ?? []);
+      // load items from subcollection or top-level cartItems via helper
+      final items = await _loadOrderItems(doc.id, data);
+
       double filteredTotal = 0.0;
 
-      for (var item in cartItems) {
-        final itemMap = item as Map<String, dynamic>;
-        final name = itemMap['name'];
-        final price = (itemMap['price'] is int)
-            ? (itemMap['price'] as int).toDouble()
-            : (itemMap['price'] as double? ?? 0.0);
-        final qty = (itemMap['quantity'] as int? ?? 1);
+      for (var item in items) {
+        final name = item['name'];
+        final price = (item['price'] is int)
+            ? (item['price'] as int).toDouble()
+            : (item['price'] as double? ?? 0.0);
+        final qty = (item['quantity'] as int? ?? 1);
 
-        if ((_selectedCakeNames ?? []).contains(name)) {
+        if (_selectedCakeNames.isEmpty || _selectedCakeNames.contains(name)) {
           filteredTotal += price * qty;
         }
       }
@@ -426,7 +547,6 @@ class _StaffScreenState extends State<StaffScreen> {
       _loadingSales = false;
     });
 
-    // Fetch target sale spots for the graph after sales data is ready
     await _fetchTargetSaleSpots();
   }
 
@@ -485,7 +605,6 @@ class _StaffScreenState extends State<StaffScreen> {
     if (result != null && result.isNotEmpty) {
       setState(() {
         _selectedCakeNames = result;
-        
       });
       await _fetchSalesData();
       await _fetchTodaySalesAndTarget();
@@ -495,7 +614,7 @@ class _StaffScreenState extends State<StaffScreen> {
   Future<void> _fetchTodaySalesAndTarget() async {
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    // Fetch today's sales
+    // Fetch today's orders
     final snapshot = await FirebaseFirestore.instance
         .collection('orders')
         .where('date', isGreaterThanOrEqualTo: todayStr)
@@ -504,15 +623,14 @@ class _StaffScreenState extends State<StaffScreen> {
     double sales = 0.0;
     for (var doc in snapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
-      final cartItems = (data['cartItems'] as List<dynamic>? ?? []);
-      for (var item in cartItems) {
-        final itemMap = item as Map<String, dynamic>;
-        final name = itemMap['name'];
-        final price = (itemMap['price'] is int)
-            ? (itemMap['price'] as int).toDouble()
-            : (itemMap['price'] as double? ?? 0.0);
-        final qty = (itemMap['quantity'] as int? ?? 1);
-        if ((_selectedCakeNames ?? []).contains(name)) {
+      final items = await _loadOrderItems(doc.id, data);
+      for (var item in items) {
+        final name = item['name'];
+        final price = (item['price'] is int)
+            ? (item['price'] as int).toDouble()
+            : (item['price'] as double? ?? 0.0);
+        final qty = (item['quantity'] as int? ?? 1);
+        if (_selectedCakeNames.isEmpty || _selectedCakeNames.contains(name)) {
           sales += price * qty;
         }
       }
@@ -569,10 +687,10 @@ class _StaffScreenState extends State<StaffScreen> {
   void initState() {
     super.initState();
     _allCakeNames = [];
-    _selectedCakeNames = []; 
+    _selectedCakeNames = [];
     _fetchAllCakeNames();
     _fetchTargetSale();
-    _fetchTodaySalesAndTarget(); 
+    _fetchTodaySalesAndTarget();
   }
 
   @override
@@ -679,23 +797,25 @@ class _StaffScreenState extends State<StaffScreen> {
                               ? const Center(child: CircularProgressIndicator())
                               : _salesSpots.isEmpty
                                   ? const Center(child: Text('No sales data'))
-          : Builder(
-              builder: (context) {
-                // Calculate minY and maxY outside the widget tree
-                final allYValues = [
-                  ..._salesSpots.map((e) => e.y),
-                  ..._targetSaleSpots.map((e) => e.y),
-                ];
-                final minY = allYValues.isNotEmpty
-                    ? allYValues.reduce((a, b) => a < b ? a : b)
-                    : 0.0;
-                final maxY = allYValues.isNotEmpty
-                    ? allYValues.reduce((a, b) => a > b ? a : b)
-                    : 30.0;
+                                  : Builder(
+                                      builder: (context) {
+                                        // Calculate minY and maxY outside the widget tree
+                                        final allYValues = [
+                                          ..._salesSpots.map((e) => e.y),
+                                          ..._targetSaleSpots.map((e) => e.y),
+                                        ];
+                                        final minY = allYValues.isNotEmpty
+                                            ? allYValues
+                                                .reduce((a, b) => a < b ? a : b)
+                                            : 0.0;
+                                        final maxY = allYValues.isNotEmpty
+                                            ? allYValues
+                                                .reduce((a, b) => a > b ? a : b)
+                                            : 30.0;
 
-                return LineChart(
-                  LineChartData(
-                    lineTouchData: LineTouchData(
+                                        return LineChart(
+                                          LineChartData(
+                                            lineTouchData: LineTouchData(
                                               touchCallback:
                                                   (FlTouchEvent event,
                                                       LineTouchResponse?
@@ -717,121 +837,182 @@ class _StaffScreenState extends State<StaffScreen> {
                                                 }
                                               },
                                             ),
-                    gridData: FlGridData(show: true),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 48,
-                          getTitlesWidget: (value, meta) {
-                            if (_salesSpots.isEmpty)
-                              return const SizedBox.shrink();
+                                            gridData: FlGridData(show: true),
+                                            titlesData: FlTitlesData(
+                                              leftTitles: AxisTitles(
+                                                sideTitles: SideTitles(
+                                                  showTitles: true,
+                                                  reservedSize: 48,
+                                                  getTitlesWidget:
+                                                      (value, meta) {
+                                                    if (_salesSpots.isEmpty)
+                                                      return const SizedBox
+                                                          .shrink();
 
-                            final minYLocal = _salesSpots
-                                .map((e) => e.y)
-                                .reduce((a, b) => a < b ? a : b);
-                            final maxYLocal = _salesSpots
-                                .map((e) => e.y)
-                                .reduce((a, b) => a > b ? a : b);
+                                                    final minYLocal =
+                                                        _salesSpots
+                                                            .map((e) => e.y)
+                                                            .reduce((a, b) =>
+                                                                a < b ? a : b);
+                                                    final maxYLocal =
+                                                        _salesSpots
+                                                            .map((e) => e.y)
+                                                            .reduce((a, b) =>
+                                                                a > b ? a : b);
 
-                            // If min and max are the same, just show that value
-                            if ((maxYLocal - minYLocal).abs() < 1e-2) {
-                              if ((value - minYLocal).abs() < 1e-2) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8.0),
-                                  child: Text(
-                                    value.toInt().toString(),
-                                    style: const TextStyle(fontSize: 12),
-                                    textAlign: TextAlign.right,
-                                  ),
-                                );
-                              }
-                              return const SizedBox.shrink();
-                            }
+                                                    // If min and max are the same, just show that value
+                                                    if ((maxYLocal - minYLocal)
+                                                            .abs() <
+                                                        1e-2) {
+                                                      if ((value - minYLocal)
+                                                              .abs() <
+                                                          1e-2) {
+                                                        return Padding(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .only(
+                                                                  right: 8.0),
+                                                          child: Text(
+                                                            value
+                                                                .toInt()
+                                                                .toString(),
+                                                            style:
+                                                                const TextStyle(
+                                                                    fontSize:
+                                                                        12),
+                                                            textAlign:
+                                                                TextAlign.right,
+                                                          ),
+                                                        );
+                                                      }
+                                                      return const SizedBox
+                                                          .shrink();
+                                                    }
 
-                            // Always show 5 evenly spaced ticks for all filters
-                            final step = (maxYLocal - minYLocal) / 4;
-                            final ticks = List.generate(5, (i) => minYLocal + step * i);
+                                                    // Always show 5 evenly spaced ticks for all filters
+                                                    final step = (maxYLocal -
+                                                            minYLocal) /
+                                                        4;
+                                                    final ticks = List.generate(
+                                                        5,
+                                                        (i) =>
+                                                            minYLocal +
+                                                            step * i);
 
-                            // Show only if value is close to a tick (avoid floating point issues)
-                            for (final tick in ticks) {
-                              if ((value - tick).abs() < step / 2) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8.0),
-                                  child: Text(
-                                    tick.round().toString(),
-                                    style: const TextStyle(fontSize: 12),
-                                    textAlign: TextAlign.right,
-                                  ),
-                                );
-                              }
-                            }
-                            return const SizedBox.shrink();
-                          },
+                                                    // Show only if value is close to a tick (avoid floating point issues)
+                                                    for (final tick in ticks) {
+                                                      if ((value - tick).abs() <
+                                                          step / 2) {
+                                                        return Padding(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .only(
+                                                                  right: 8.0),
+                                                          child: Text(
+                                                            tick
+                                                                .round()
+                                                                .toString(),
+                                                            style:
+                                                                const TextStyle(
+                                                                    fontSize:
+                                                                        12),
+                                                            textAlign:
+                                                                TextAlign.right,
+                                                          ),
+                                                        );
+                                                      }
+                                                    }
+                                                    return const SizedBox
+                                                        .shrink();
+                                                  },
+                                                ),
+                                              ),
+                                              bottomTitles: AxisTitles(
+                                                sideTitles: SideTitles(
+                                                  showTitles: true,
+                                                  reservedSize: 48,
+                                                  interval:
+                                                      (_salesLabels.length / 2)
+                                                          .ceilToDouble()
+                                                          .clamp(1, 999),
+                                                  getTitlesWidget:
+                                                      (value, meta) {
+                                                    int idx = value.toInt();
+                                                    // Only show first, last, and every Nth label
+                                                    if (_salesLabels.isEmpty)
+                                                      return const SizedBox
+                                                          .shrink();
+                                                    if (idx == 0 ||
+                                                        idx ==
+                                                            _salesLabels
+                                                                    .length -
+                                                                1 ||
+                                                        idx %
+                                                                ((_salesLabels
+                                                                            .length /
+                                                                        4)
+                                                                    .ceil()) ==
+                                                            0) {
+                                                      final date =
+                                                          DateTime.tryParse(
+                                                              _salesLabels[
+                                                                  idx]);
+                                                      return Text(
+                                                        date != null
+                                                            ? DateFormat(
+                                                                    'd MMM')
+                                                                .format(date)
+                                                            : _salesLabels[idx],
+                                                        style: const TextStyle(
+                                                            fontSize: 11),
+                                                      );
+                                                    }
+                                                    return const SizedBox
+                                                        .shrink();
+                                                  },
+                                                ),
+                                              ),
+                                              rightTitles: const AxisTitles(
+                                                  sideTitles: SideTitles(
+                                                      showTitles: false)),
+                                              topTitles: const AxisTitles(
+                                                  sideTitles: SideTitles(
+                                                      showTitles: false)),
+                                            ),
+                                            borderData:
+                                                FlBorderData(show: false),
+                                            minX: 0,
+                                            maxX: _salesSpots.isNotEmpty
+                                                ? (_salesSpots.length - 1)
+                                                    .toDouble()
+                                                : 4,
+                                            minY: minY > 0 ? minY - 10 : 0,
+                                            maxY: maxY + 10,
+                                            lineBarsData: [
+                                              LineChartBarData(
+                                                spots: _salesSpots,
+                                                isCurved: true,
+                                                color: AppColors.pink700,
+                                                barWidth: 3,
+                                                dotData:
+                                                    const FlDotData(show: true),
+                                              ),
+                                              if (_targetSaleSpots.isNotEmpty)
+                                                LineChartBarData(
+                                                  spots: _targetSaleSpots,
+                                                  isCurved: false,
+                                                  color: Colors.teal,
+                                                  barWidth: 2,
+                                                  dotData: const FlDotData(
+                                                      show: false),
+                                                  dashArray: [8, 4],
+                                                ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
                         ),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 48,
-                          interval: (_salesLabels.length / 2)
-                              .ceilToDouble()
-                              .clamp(1, 999),
-                          getTitlesWidget: (value, meta) {
-                            int idx = value.toInt();
-                            // Only show first, last, and every Nth label
-                            if (_salesLabels.isEmpty)
-                              return const SizedBox.shrink();
-                            if (idx == 0 ||
-                                idx == _salesLabels.length - 1 ||
-                                idx % ((_salesLabels.length / 4).ceil()) == 0) {
-                              final date = DateTime.tryParse(_salesLabels[idx]);
-                              return Text(
-                                date != null
-                                    ? DateFormat('d MMM').format(date)
-                                    : _salesLabels[idx],
-                                style: const TextStyle(fontSize: 11),
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
-                      ),
-                      rightTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    minX: 0,
-                    maxX: _salesSpots.isNotEmpty
-                        ? (_salesSpots.length - 1).toDouble()
-                        : 4,
-                    minY: minY > 0 ? minY - 10 : 0,
-                    maxY: maxY + 10,
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: _salesSpots,
-                        isCurved: true,
-                        color: AppColors.pink700,
-                        barWidth: 3,
-                        dotData: const FlDotData(show: true),
-                      ),
-                      if (_targetSaleSpots.isNotEmpty)
-                        LineChartBarData(
-                          spots: _targetSaleSpots,
-                          isCurved: false,
-                          color: Colors.teal,
-                          barWidth: 2,
-                          dotData: const FlDotData(show: false),
-                          dashArray: [8, 4],
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-),
                         const SizedBox(height: 24),
                         LayoutBuilder(
                           builder: (context, btnConstraints) {
@@ -969,12 +1150,14 @@ class _StaffScreenState extends State<StaffScreen> {
                           _selectedOrderIndex = index;
                         });
                       },
-                      onDoubleTap: () {
+                      onDoubleTap: () async {
+                        final List<Map<String, dynamic>> items =
+                            await _loadOrderItems(orderId, data);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => ReceiptScreen(
-                              cartItems: cartItems,
+                              cartItems: items,
                               orderType: orderType,
                               orderNumber: orderNumber,
                               showDoneButton: false,
@@ -1319,92 +1502,90 @@ class _StaffScreenState extends State<StaffScreen> {
       ),
     );
   }
+
   Widget _buildTodaySalesPieLive() {
-    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('orders')
-          .where('date', isGreaterThanOrEqualTo: todayStr)
-          .snapshots(),
-      builder: (context, orderSnapshot) {
-        if (!orderSnapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        double sales = 0.0;
-        for (var doc in orderSnapshot.data!.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          final cartItems = (data['cartItems'] as List<dynamic>? ?? []);
-          for (var item in cartItems) {
-            final itemMap = item as Map<String, dynamic>;
-            final name = itemMap['name'];
-            final price = (itemMap['price'] is int)
-                ? (itemMap['price'] as int).toDouble()
-                : (itemMap['price'] as double? ?? 0.0);
-            final qty = (itemMap['quantity'] as int? ?? 1);
-            if ((_selectedCakeNames ?? []).contains(name)) {
-              sales += price * qty;
-            }
+  return StreamBuilder<QuerySnapshot>(
+    stream: FirebaseFirestore.instance
+        .collection('orders')
+        .where('date', isGreaterThanOrEqualTo: todayStr)
+        .snapshots(),
+    builder: (context, orderSnapshot) {
+      if (!orderSnapshot.hasData) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      final computeFuture = _computeSalesFromDocs(orderSnapshot.data!.docs);
+
+      return FutureBuilder<double>(
+        future: computeFuture,
+        builder: (context, salesSnapshot) {
+          if (!salesSnapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
           }
-        }
-        return StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('settings')
-              .doc('targetSales')
-              .collection('periods')
-              .doc(todayStr)
-              .snapshots(),
-          builder: (context, targetSnapshot) {
-            double target = 0.0;
-            if (targetSnapshot.hasData &&
-                targetSnapshot.data!.exists &&
-                targetSnapshot.data!.data() != null) {
-              final data = targetSnapshot.data!.data() as Map<String, dynamic>;
-              target = (data['value'] as num?)?.toDouble() ?? 0.0;
-            }
-            final achieved = target > 0 ? sales.clamp(0, target) : 0.0;
-            final remaining =
-                target > 0 ? (target - achieved).clamp(0, target) : 0.0;
-            final percent =
-                target > 0 ? (achieved / target * 100).clamp(0, 100) : 0.0;
+          final sales = salesSnapshot.data ?? 0.0;
 
-            return _HoverPieCard(
-              title: 'Total Sales',
-              pie: PieChart(
-                PieChartData(
-                  sections: [
-                    PieChartSectionData(
-                      color: AppColors.pink500,
-                      value: achieved.toDouble(),
-                      title: '${percent.toStringAsFixed(0)}%',
-                      radius: 48,
-                      titleStyle: const TextStyle(
-                          fontSize: 18,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    PieChartSectionData(
-                      color: AppColors.salmon400,
-                      value: remaining.toDouble(),
-                      title: '',
-                      radius: 48,
-                    ),
-                  ],
-                  centerSpaceRadius: 24,
-                  sectionsSpace: 2,
-                  borderData: FlBorderData(show: false),
+          return StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('settings')
+                .doc('targetSales')
+                .collection('periods')
+                .doc(todayStr)
+                .snapshots(),
+            builder: (context, targetSnapshot) {
+              double target = 0.0;
+              if (targetSnapshot.hasData &&
+                  targetSnapshot.data!.exists &&
+                  targetSnapshot.data!.data() != null) {
+                final data = targetSnapshot.data!.data() as Map<String, dynamic>;
+                target = (data['value'] as num?)?.toDouble() ?? 0.0;
+              }
+              final achieved = target > 0 ? sales.clamp(0, target) : 0.0;
+              final remaining =
+                  target > 0 ? (target - achieved).clamp(0, target) : 0.0;
+              final percent =
+                  target > 0 ? (achieved / target * 100).clamp(0, 100) : 0.0;
+
+              return _HoverPieCard(
+                title: 'Total Sales',
+                pie: PieChart(
+                  PieChartData(
+                    sections: [
+                      PieChartSectionData(
+                        color: AppColors.pink500,
+                        value: achieved.toDouble(),
+                        title: '${percent.toStringAsFixed(0)}%',
+                        radius: 48,
+                        titleStyle: const TextStyle(
+                            fontSize: 18,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      PieChartSectionData(
+                        color: AppColors.salmon400,
+                        value: remaining.toDouble(),
+                        title: '',
+                        radius: 48,
+                      ),
+                    ],
+                    centerSpaceRadius: 24,
+                    sectionsSpace: 2,
+                    borderData: FlBorderData(show: false),
+                  ),
                 ),
-              ),
-              onDoubleTap: _showSalesDetailsScreen,
-              info: 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
-                  'Target: ₱${target.toStringAsFixed(2)}\n'
-                  'Achieved: ${percent.toStringAsFixed(1)}%',
-            );
-          },
-        );
-      },
-    );
-  }
+                onDoubleTap: _showSalesDetailsScreen,
+                info: 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
+                    'Target: ₱${target.toStringAsFixed(2)}\n'
+                    'Achieved: ${percent.toStringAsFixed(1)}%',
+              );
+            },
+          );
+        },
+      );
+    },
+  );
+}
 }
 
 class _HoverPieCard extends StatefulWidget {
@@ -1413,8 +1594,12 @@ class _HoverPieCard extends StatefulWidget {
   final VoidCallback? onDoubleTap;
   final String? info;
 
-  const _HoverPieCard(
-      {required this.title, required this.pie, this.onDoubleTap, this.info,});
+  const _HoverPieCard({
+    required this.title,
+    required this.pie,
+    this.onDoubleTap,
+    this.info,
+  });
 
   @override
   State<_HoverPieCard> createState() => _HoverPieCardState();
