@@ -67,6 +67,8 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
     _cartItems = widget.initialCartItems != null
         ? List.from(widget.initialCartItems!)
         : [];
+    
+    _selectedShape = 'Round';
 
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 400),
@@ -229,6 +231,8 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
             cartItem['cakeImage'] = widget.cake['image'];
             cartItem['cakePrice'] = widget.cake['price'];
             cartItem['quantity'] = 1; // Initialize quantity
+
+            cartItem['shape'] = 'round';
 
             setState(() {
               _cartItems.add(cartItem);
@@ -668,10 +672,18 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                               onViewTap: () {
                                 // Check if it's Classic Vanilla
                                 final cakeName = widget.cake['name'] as String;
+                                setState(() {
+                                  _selectedShape = 'Round';
+                                });
                                 if (cakeName == 'Classic Vanilla') {
                                   _showFlavorSelectionScreen();
+                                } else if (cakeName == 'Combo A') {
+                                  setState(() {
+                                    _showFlavorAfterShape = true;
+                                  });
+                                  _slideController.forward();
                                 } else {
-                                  _showShapeSelectionScreen();
+                                  _showLoadingScreen();
                                 }
                               },
                               viewButtonText: 'Customize',

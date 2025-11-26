@@ -25,6 +25,13 @@ class _StaffScreenState extends State<StaffScreen> {
   int? _selectedOrderIndex;
   bool _showSalesDetails = false;
 
+  bool _showToppingsDetails = false;
+  bool _loadingToppings = false;
+  List<String> _toppingsLabels = [];
+  List<String> _topToppings = [];
+  Map<String, List<FlSpot>> _toppingSpots = {};
+  int? _selectedToppingIndex;
+
   List<FlSpot> _salesSpots = [];
   List<FlSpot> _targetSaleSpots = [];
   List<String> _salesLabels = [];
@@ -319,12 +326,12 @@ class _StaffScreenState extends State<StaffScreen> {
         // Sum all daily targets in this month
         target = dailyTargets.entries
             .where((e) => e.key.startsWith(label)) // label is 'yyyy-MM'
-            .fold(0.0, (sum, e) => sum + e.value);
+            .fold(0.0, (double sum, e) => sum + e.value);
       } else if (_salesFilter == 'year') {
         // Sum all daily targets in this year
         target = dailyTargets.entries
             .where((e) => e.key.startsWith(label)) // label is 'yyyy'
-            .fold(0.0, (sum, e) => sum + e.value);
+            .fold(0.0, (double sum, e) => sum + e.value);
       }
 
       _targetSaleSpots.add(FlSpot(i.toDouble(), target));
@@ -377,6 +384,102 @@ class _StaffScreenState extends State<StaffScreen> {
 
   // Edit target sale dialog for current period
   Future<void> _editTargetSaleDialog() async {
+    // Present choice: set default target sale or customize (existing calendar flow)
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Target Sale'),
+        content: const Text(
+            'Choose action: set a default daily target, or customize a target for a specific date.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'customize'),
+            child: const Text('Customize target sale'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, 'default'),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.pink700),
+            child: const Text('Set default target sale'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null) return;
+
+    // Helper to save default into settings/targetSales doc and ensure today's period exists
+    Future<void> _saveDefaultDailyTarget(double value) async {
+      final settingsRef =
+          FirebaseFirestore.instance.collection('settings').doc('targetSales');
+      await settingsRef.set({'defaultDaily': value}, SetOptions(merge: true));
+
+      // ensure today's period doc exists so UI shows a target for today
+      final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final periodRef = settingsRef.collection('periods').doc(todayStr);
+      final doc = await periodRef.get();
+      if (!doc.exists) {
+        await periodRef.set({'value': value});
+      }
+      await _fetchTargetSale();
+      await _fetchTodaySalesAndTarget();
+    }
+
+    // If user chose default -> prompt for amount, save as default and create today's if missing
+    if (choice == 'default') {
+      // fetch existing default if any
+      final settingsSnapshot = await FirebaseFirestore.instance
+          .collection('settings')
+          .doc('targetSales')
+          .get();
+      double? existingDefault;
+      if (settingsSnapshot.exists && settingsSnapshot.data() != null) {
+        existingDefault =
+            (settingsSnapshot.data()!['defaultDaily'] as num?)?.toDouble();
+      }
+
+      final controller = TextEditingController(
+          text: existingDefault != null
+              ? existingDefault.toStringAsFixed(2)
+              : '');
+      final result = await showDialog<double>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Set default daily target'),
+          content: TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Default target sale (₱)',
+              hintText: 'Enter default amount for each day',
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                final value = double.tryParse(controller.text);
+                if (value != null && value > 0) Navigator.pop(context, value);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+
+      if (result != null) {
+        await _saveDefaultDailyTarget(result);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'Default daily target saved. Today\'s target set if missing.')),
+        );
+      }
+      return;
+    }
+
+    // If user chose customize -> run the previous calendar + value flow (unchanged)
     DateTime selectedDate = DateTime.now();
     double? targetValue;
 
@@ -406,14 +509,14 @@ class _StaffScreenState extends State<StaffScreen> {
       text: targetValue?.toStringAsFixed(2) ?? '',
     );
 
-    final result = await showDialog<double>(
+    final customResult = await showDialog<double>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
             'Set Target Sale for ${DateFormat('yyyy-MM-dd').format(selectedDate)}'),
         content: TextField(
           controller: controller,
-          keyboardType: TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
             labelText: 'Target Sale (₱)',
             hintText: 'Enter target sale amount',
@@ -436,13 +539,13 @@ class _StaffScreenState extends State<StaffScreen> {
         ],
       ),
     );
-    if (result != null) {
+    if (customResult != null) {
       await FirebaseFirestore.instance
           .collection('settings')
           .doc('targetSales')
           .collection('periods')
           .doc(DateFormat('yyyy-MM-dd').format(selectedDate))
-          .set({'value': result});
+          .set({'value': customResult});
       await _fetchTargetSale();
     }
   }
@@ -660,6 +763,131 @@ class _StaffScreenState extends State<StaffScreen> {
     });
     _fetchSalesData();
     _fetchTargetSale();
+  }
+
+  // Show toppings (ingredients) usage timeline for top 5 toppings
+  void _showToppingsDetailsScreen() {
+    setState(() {
+      _showToppingsDetails = true;
+    });
+    _fetchToppingsData();
+  }
+
+  // Fetch counts of toppings by period (days/months/year) and prepare line chart data.
+  Future<void> _fetchToppingsData() async {
+    setState(() => _loadingToppings = true);
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('orders')
+        .orderBy('date')
+        .get();
+    // map: label -> topping -> count
+    final Map<String, Map<String, int>> counts = {};
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final dateStr = data['date'];
+      final items = await _loadOrderItems(doc.id, data);
+
+      DateTime? date;
+      if (dateStr is String) {
+        try {
+          date = DateTime.parse(dateStr);
+        } catch (_) {
+          try {
+            date = DateFormat('MM/dd/yyyy').parse(dateStr);
+          } catch (_) {}
+        }
+      } else if (dateStr is Timestamp) {
+        date = dateStr.toDate();
+      }
+      if (date == null) continue;
+
+      String label;
+      switch (_salesFilter) {
+        case 'months':
+          label = DateFormat('yyyy-MM').format(date);
+          break;
+        case 'year':
+          label = DateFormat('yyyy').format(date);
+          break;
+        case 'days':
+        default:
+          label = DateFormat('yyyy-MM-dd').format(date);
+      }
+
+      counts.putIfAbsent(label, () => {});
+
+      // inspect toppings fields for each item; robust to different shapes
+      for (var item in items) {
+        List<String> extractList(dynamic v) {
+          final out = <String>[];
+          if (v == null) return out;
+          if (v is String) {
+            out.add(v);
+          } else if (v is List) {
+            for (var e in v) {
+              if (e is String) out.add(e);
+              else if (e is Map) {
+                final n = e['name'] ?? e['title'] ?? e['label'] ?? e['topping'];
+                if (n is String) out.add(n);
+              }
+            }
+          } else if (v is Map) {
+            final n = v['name'] ?? v['title'] ?? v['label'] ?? v['topping'];
+            if (n is String) out.add(n);
+          }
+          return out;
+        }
+
+        final candidates = <dynamic>[
+          item['toppings'],
+          item['selectedToppings'],
+          item['extras'],
+          item['topping'],
+          item['toppingsSelected']
+        ];
+        for (var c in candidates) {
+          for (final name in extractList(c)) {
+            if (name.trim().isEmpty) continue;
+            counts[label]![name] = (counts[label]![name] ?? 0) + 1;
+          }
+        }
+      }
+    }
+
+    // determine sorted labels (periods)
+    final labels = counts.keys.toList()..sort((a, b) => a.compareTo(b));
+
+    // compute totals per topping to pick top 5
+    final Map<String, int> totals = {};
+    for (var label in labels) {
+      counts[label]!.forEach((k, v) {
+        totals[k] = (totals[k] ?? 0) + v;
+      });
+    }
+
+    final top = totals.keys.toList()
+      ..sort((a, b) => totals[b]!.compareTo(totals[a]!));
+    final top5 = top.take(5).toList();
+
+    // build spots per topping (indexed by label order)
+    final Map<String, List<FlSpot>> spots = {};
+    for (var t in top5) spots[t] = [];
+    for (int i = 0; i < labels.length; i++) {
+      final label = labels[i];
+      for (var t in top5) {
+        final value = counts[label] != null ? (counts[label]![t] ?? 0) : 0;
+        spots[t]!.add(FlSpot(i.toDouble(), value.toDouble()));
+      }
+    }
+
+    setState(() {
+      _toppingsLabels = labels;
+      _topToppings = top5;
+      _toppingSpots = spots;
+      _loadingToppings = false;
+    });
   }
 
   Widget _buildFilterButton(String value, String label) {
@@ -1070,6 +1298,117 @@ class _StaffScreenState extends State<StaffScreen> {
         ),
       );
     }
+    if (_showToppingsDetails) {
+      // simple multi-line chart for the top 5 toppings
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Ingredients usage'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => setState(() => _showToppingsDetails = false),
+          ),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Toppings placed (top 5)',
+                        style:
+                            TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    if (_loadingToppings)
+                      const Center(child: CircularProgressIndicator())
+                    else if (_toppingSpots.isEmpty || _topToppings.isEmpty)
+                      const Center(child: Text('No toppings data'))
+                    else
+                      SizedBox(
+                        height: 300,
+                        child: LineChart(
+                          LineChartData(
+                            gridData: FlGridData(show: true),
+                            titlesData: FlTitlesData(
+                              leftTitles: AxisTitles(
+                                sideTitles: SideTitles(showTitles: true),
+                              ),
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  getTitlesWidget: (value, meta) {
+                                    final idx = value.toInt();
+                                    if (_toppingsLabels.isEmpty) return const SizedBox.shrink();
+                                    if (idx < 0 || idx >= _toppingsLabels.length) return const SizedBox.shrink();
+                                    final label = _toppingsLabels[idx];
+                                    if (_salesFilter == 'days') {
+                                      final d = DateTime.tryParse(label);
+                                      if (d != null) return Text(DateFormat('d MMM').format(d), style: const TextStyle(fontSize: 10));
+                                    }
+                                    return Text(label, style: const TextStyle(fontSize: 10));
+                                  },
+                                  interval: (_toppingsLabels.length / 4).ceilToDouble().clamp(1, 999),
+                                ),
+                              ),
+                            ),
+                            minX: 0,
+                            maxX: _toppingsLabels.isNotEmpty ? (_toppingsLabels.length - 1).toDouble() : 4,
+                            lineBarsData: List.generate(_topToppings.length, (i) {
+                              final name = _topToppings[i];
+                              final spots = _toppingSpots[name] ?? [];
+                              final colors = [AppColors.pink700, AppColors.pink500, AppColors.salmon400, AppColors.peach300, Colors.teal];
+                              return LineChartBarData(
+                                spots: spots,
+                                isCurved: true,
+                                color: colors[i % colors.length],
+                                barWidth: 2,
+                                dotData: const FlDotData(show: false),
+                              );
+                            }),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    // legend
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: List.generate(_topToppings.length, (i) {
+                        final name = _topToppings[i];
+                        final colors = [AppColors.pink700, AppColors.pink500, AppColors.salmon400, AppColors.peach300, Colors.teal];
+                        return Chip(
+                          backgroundColor: colors[i % colors.length].withOpacity(0.15),
+                          label: Text(name),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () => setState(() => _showToppingsDetails = false),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     if (_showOrdersManager) {
       return Scaffold(
         appBar: AppBar(
@@ -1444,7 +1783,7 @@ class _StaffScreenState extends State<StaffScreen> {
                     const SizedBox(width: 24),
                     Expanded(
                       child: _HoverPieCard(
-                        title: 'Ingredients Used',
+                        title: 'Toppings Used',
                         pie: _SamplePieChart(
                           sections: [
                             PieChartSectionData(
@@ -1473,6 +1812,7 @@ class _StaffScreenState extends State<StaffScreen> {
                             ),
                           ],
                         ),
+                        onDoubleTap: _showToppingsDetailsScreen,
                       ),
                     ),
                   ],

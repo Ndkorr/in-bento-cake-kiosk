@@ -17,13 +17,21 @@ class PaymentMethodScreen extends StatelessWidget {
 
   double _calculateTotal(List<Map<String, dynamic>> cartItems) {
     double total = 0;
+    int _parseQty(dynamic v) {
+      if (v == null) return 1;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 1;
+      return 1;
+    }
+
     for (final item in cartItems) {
       final price = (item['price'] is num)
           ? item['price'].toDouble()
           : (item['cakePrice'] is num)
               ? item['cakePrice'].toDouble()
               : 0.0;
-      final qty = (item['quantity'] is int) ? item['quantity'] : 1;
+      final qty = _parseQty(item['quantity']);
       total += price * qty;
     }
     return total;
@@ -85,9 +93,72 @@ class PaymentMethodScreen extends StatelessWidget {
 
     // write each item into orders/{orderId}/items subcollection
     int idx = 0;
+
+    final Map<String, int> toppingsCounts = {};
+
+    // helper to extract topping names from many possible shapes
+    List<String> _extractToppings(dynamic raw) {
+      final out = <String>[];
+      if (raw == null) return out;
+      // plain string
+      if (raw is String) {
+        final s = raw.trim();
+        if (s.isNotEmpty) out.add(s);
+        return out;
+      }
+      // list of strings or maps
+      if (raw is List) {
+        for (var e in raw) {
+          out.addAll(_extractToppings(e));
+        }
+        return out;
+      }
+      // map: try common keys, then search values for first suitable string
+      if (raw is Map) {
+        final candidates = [
+          raw['name'],
+          raw['title'],
+          raw['label'],
+          raw['topping'],
+          raw['value'],
+          raw['text']
+        ];
+        for (var c in candidates) {
+          if (c is String && c.trim().isNotEmpty) {
+            out.add(c.trim());
+            return out;
+          }
+        }
+        // fallback: examine map values (first string found)
+        for (var v in raw.values) {
+          if (v is String && v.trim().isNotEmpty) {
+            out.add(v.trim());
+            return out;
+          } else if (v is List || v is Map) {
+            out.addAll(_extractToppings(v));
+          }
+        }
+        return out;
+      }
+      return out;
+    }
+
+    // sanitize keys used as field names in Firestore (remove problematic chars)
+    String _sanitizeKey(String s) {
+      return s.replaceAll(RegExp(r'[.$\[\]#/\\]'), '_').trim();
+    }
+
     for (final item in cartItems) {
       idx++;
       final newItem = Map<String, dynamic>.from(item);
+
+      int _parseQty(dynamic v) {
+        if (v == null) return 1;
+        if (v is int) return v;
+        if (v is num) return v.toInt();
+        if (v is String) return int.tryParse(v) ?? 1;
+        return 1;
+      }
 
       // compress toppingsImage if present and small enough
       if (newItem['toppingsImage'] != null &&
@@ -113,11 +184,76 @@ class PaymentMethodScreen extends StatelessWidget {
       newItem['orderCreatedAt'] = now.toIso8601String();
       newItem['index'] = idx;
 
+      // count toppings for aggregation (respect quantity if present)
+      final qty = _parseQty(newItem['quantity']);
+      final Map<String,int> perItemCounts = {};
+
+     // If the customizer already supplied toppingsCounts, use it (scale by qty).
+     if (newItem.containsKey('toppingsCounts') && newItem['toppingsCounts'] is Map) {
+       final provided = Map<String,dynamic>.from(newItem['toppingsCounts'] as Map);
+       provided.forEach((rawKey, rawVal) {
+         final key = _sanitizeKey(rawKey.toString());
+         final val = (rawVal is num) ? rawVal.toInt() : int.tryParse(rawVal.toString()) ?? 0;
+         if (val == 0) return;
+         perItemCounts[key] = (perItemCounts[key] ?? 0) + val * qty;
+         toppingsCounts[key] = (toppingsCounts[key] ?? 0) + val * qty;
+       });
+     } else {
+       // fallback to existing extraction when toppingsCounts not provided
+       final candidateFields = [
+         newItem['toppings'],
+         newItem['selectedToppings'],
+         newItem['extras'],
+         newItem['topping'],
+         newItem['toppingsSelected']
+       ];
+       for (var field in candidateFields) {
+         for (final name in _extractToppings(field)) {
+           final sanitized = _sanitizeKey(name);
+           final add = qty;
+           toppingsCounts[sanitized] = (toppingsCounts[sanitized] ?? 0) + add;
+           perItemCounts[sanitized] = (perItemCounts[sanitized] ?? 0) + add;
+         }
+       }
+     }
+
+    if (perItemCounts.isNotEmpty) {
+      newItem['toppingsCounts'] = perItemCounts;
+      newItem['toppingsSummary'] = perItemCounts.entries.map((e) => '${e.key}(x${e.value})').join(', ');
+    }
+
+      
+
+     // debug: print to console so you can check values in debug log
+     // (remove in production)
+     debugPrint('Saving item #$idx -> qty=$qty perItemCounts=$perItemCounts toppingsCountsSoFar=$toppingsCounts');
+
       await FirebaseFirestore.instance
           .collection('orders')
           .doc(orderRef.id)
           .collection('items')
           .add(newItem);
+    }
+
+    // persist aggregated toppings usage: doc per day (yyyy-mm-dd)
+    if (toppingsCounts.isNotEmpty) {
+      final dateKey = now.toIso8601String().substring(0, 10);
+      final usageRef =
+          FirebaseFirestore.instance.collection('toppingsUsage').doc(dateKey);
+      final Map<String, dynamic> incData = {};
+      toppingsCounts.forEach((name, count) {
+        incData[name] = FieldValue.increment(count);
+      });
+      await usageRef.set(incData, SetOptions(merge: true));
+
+      // optional: also increment global totals
+      final globalRef =
+          FirebaseFirestore.instance.collection('toppingsUsage').doc('global');
+      final Map<String, dynamic> incGlobal = {};
+      toppingsCounts.forEach((name, count) {
+        incGlobal[name] = FieldValue.increment(count);
+      });
+      await globalRef.set(incGlobal, SetOptions(merge: true));
     }
 
     return nextOrderNumber;
@@ -148,8 +284,8 @@ class PaymentMethodScreen extends StatelessWidget {
               children: [
                 const SizedBox(height: 32),
                 _PaymentOption(
-                  icon: Icons.storefront,
-                  label: 'Cash',
+                  icon: Icons.credit_card,
+                  label: 'Card',
                   onTap: () async {
                     final nextOrderNumber =
                         await _saveOrderToFirestore(cartItems, orderType);
@@ -168,7 +304,7 @@ class PaymentMethodScreen extends StatelessWidget {
                 const SizedBox(height: 24),
                 _PaymentOption(
                   icon: Icons.qr_code_2,
-                  label: 'Card or Scan QR',
+                  label: 'Scan QR',
                   onTap: () async {
                     final nextOrderNumber =
                         await _saveOrderToFirestore(cartItems, orderType);

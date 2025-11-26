@@ -565,6 +565,15 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
       toppingsImage = await _captureToppingsImage();
     }
 
+    // Count placed toppings
+    final Map<String, int> toppingCounts = {};
+    for (final t in _placedToppings) {
+      toppingCounts[t.toppingName] = (toppingCounts[t.toppingName] ?? 0) + 1;
+    }
+
+    final toppingsSummary =
+        toppingCounts.entries.map((e) => '${e.key}(x${e.value})').join(', ');
+
     final selectedToppings =
         _placedToppings.map((t) => t.toppingName).toSet().toList();
 
@@ -575,7 +584,10 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
       'frosting': widget.selectedFrosting,
       'timestamp': DateTime.now(),
       'toppingsImage': toppingsImage,
-      'selectedToppings': selectedToppings, // <-- Add this line
+      'selectedToppings': selectedToppings, // list of unique topping names
+      'toppingsCounts': toppingCounts, // Map<String,int> for accurate counts
+      'toppingsSummary': toppingsSummary, // String summary for display
+      'quantity': 1
     };
 
     Navigator.pop(context, cartItem);

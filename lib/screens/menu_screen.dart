@@ -31,19 +31,19 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
     {
       'name': 'Combo C',
       'description': 'Minifesto Deluxe',
-      'price': 299.00,
+      'price': 499.00,
       'image': 'assets/images/cake_1.png',
     },
     {
       'name': 'Combo B',
       'description': 'Minifesto Elite',
-      'price': 349.00,
+      'price': 499.00,
       'image': 'assets/images/cake_2.png',
     },
     {
       'name': 'Combo A',
       'description': 'Minifesto Classic',
-      'price': 249.00,
+      'price': 499.00,
       'image': 'assets/images/cake_3.png',
     },
   ];
