@@ -5,9 +5,22 @@ import '../theme/app_colors.dart';
 import 'menu_screen.dart'; 
 
 class LoadingOverlay extends StatefulWidget {
-  const LoadingOverlay({super.key, required this.orderType});
+  const LoadingOverlay({
+    super.key,
+    this.orderType,
+    this.title,
+    this.nextScreenBuilder,
+    this.waitFor,
+  });
+  // legacy flow: when showing overlay for order flow, set orderType and no nextScreenBuilder
+  final String? orderType; // optional, kept for existing welcome_screen usage
+  // optional custom title shown at top of overlay (e.g. "Logging in")
+  final String? title;
+  // optional builder for the screen to navigate to once the animation completes
+  final WidgetBuilder? nextScreenBuilder;
 
-  final String orderType; // 'Dine In' or 'Takeout'
+  final Future<void>? waitFor;
+ 
 
   @override
   State<LoadingOverlay> createState() => _LoadingOverlayState();
@@ -140,13 +153,31 @@ class _LoadingOverlayState extends State<LoadingOverlay>
   void _finishAnimation() async {
     await Future.delayed(const Duration(milliseconds: 1000));
     if (mounted) {
+      if (widget.waitFor != null) {
+        try {
+          await widget.waitFor!.timeout(const Duration(seconds: 8));
+        } catch (_) {
+          // ignore timeout/errors and continue to navigation - prevents blocking forever
+        }
+      }
+
       Navigator.pop(context); // Close loading overlay
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MenuScreen(orderType: widget.orderType),
-        ),
-      );
+      // If a custom next screen is provided, navigate to it; otherwise keep legacy menu navigation.
+      if (widget.nextScreenBuilder != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: widget.nextScreenBuilder!,
+          ),
+        );
+      } else if (widget.orderType != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MenuScreen(orderType: widget.orderType!),
+          ),
+        );
+      }
     }
   }
 
@@ -172,7 +203,7 @@ class _LoadingOverlayState extends State<LoadingOverlay>
                 end: Alignment.bottomRight,
               ).createShader(bounds),
               child: Text(
-                'Preparing your cake',
+                widget.title ?? 'Preparing your cake',
                 style: GoogleFonts.ubuntu(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,

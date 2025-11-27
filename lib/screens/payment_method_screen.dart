@@ -7,6 +7,7 @@ import 'receipt_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
+import 'loading_screen.dart';
 
 class PaymentMethodScreen extends StatelessWidget {
   final List<Map<String, dynamic>> cartItems;
@@ -287,15 +288,21 @@ class PaymentMethodScreen extends StatelessWidget {
                   icon: Icons.credit_card,
                   label: 'Card',
                   onTap: () async {
-                    final nextOrderNumber =
-                        await _saveOrderToFirestore(cartItems, orderType);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ReceiptScreen(
+                    int? nextOrderNumber;
+                    final saveFuture = _saveOrderToFirestore(cartItems, orderType)
+                        .then((val) => nextOrderNumber = val);
+
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      barrierColor: Colors.transparent,
+                      builder: (context) => LoadingOverlay(
+                        title: 'Preparing your receipt',
+                        waitFor: saveFuture,
+                        nextScreenBuilder: (_) => ReceiptScreen(
                           cartItems: cartItems,
                           orderType: orderType,
-                          orderNumber: nextOrderNumber,
+                          orderNumber: nextOrderNumber ?? 0,
                         ),
                       ),
                     );
@@ -306,15 +313,21 @@ class PaymentMethodScreen extends StatelessWidget {
                   icon: Icons.qr_code_2,
                   label: 'Scan QR',
                   onTap: () async {
-                    final nextOrderNumber =
-                        await _saveOrderToFirestore(cartItems, orderType);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ReceiptScreen(
+                    int? nextOrderNumber;
+                    final saveFuture = _saveOrderToFirestore(cartItems, orderType)
+                        .then((val) => nextOrderNumber = val);
+
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      barrierColor: Colors.transparent,
+                      builder: (context) => LoadingOverlay(
+                        title: 'Preparing your receipt',
+                        waitFor: saveFuture,
+                        nextScreenBuilder: (_) => ReceiptScreen(
                           cartItems: cartItems,
                           orderType: orderType,
-                          orderNumber: nextOrderNumber,
+                          orderNumber: nextOrderNumber ?? 0,
                         ),
                       ),
                     );

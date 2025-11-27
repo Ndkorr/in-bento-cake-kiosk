@@ -674,13 +674,18 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1.5),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label.padRight(10),
-            style: const TextStyle(
-              fontFamily: 'RobotoMono',
-              fontSize: 13,
-              color: Colors.black87,
+          // fixed-width label column so values align and wrap consistently
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontFamily: 'RobotoMono',
+                fontSize: 13,
+                color: Colors.black87,
+              ),
             ),
           ),
           const Text(': ',
@@ -693,7 +698,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                 fontSize: 13,
                 color: Colors.black87,
               ),
-              overflow: TextOverflow.ellipsis,
+              softWrap: true,
+              // allow long toppings text to wrap onto multiple lines
             ),
           ),
         ],

@@ -3,6 +3,7 @@ import '../theme/app_colors.dart';
 import 'welcome_screen.dart';
 import 'staff_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'loading_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onContinueKiosk;
@@ -35,9 +36,55 @@ class _LoginScreenState extends State<LoginScreen> {
         .get();
 
     if (query.docs.isNotEmpty) {
-      // Navigate to StaffScreen
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const StaffScreen()),
+      // Prefetch the primary collections the staff screen uses so the pie charts can load.
+      Future<void> prefetchStaffData() async {
+        try {
+          // warm orders and settings/targetSales
+          await FirebaseFirestore.instance.collection('orders').limit(50).get();
+          await FirebaseFirestore.instance
+              .collection('settings')
+              .doc('targetSales')
+              .collection('periods')
+              .limit(50)
+              .get();
+
+          // Prefetch toppings collection (or whatever collection holds ingredient/topping metadata)
+          // Adjust collection name if you store toppings under a different path.
+          await FirebaseFirestore.instance.collection('toppings').limit(200).get();
+
+          // Optionally warm any commonly used subcollections (lightweight)
+          // Example: fetch items of a small sample of recent orders to warm subcollection reads
+          final recentOrders = await FirebaseFirestore.instance
+              .collection('orders')
+              .orderBy('created_at', descending: true)
+              .limit(5)
+              .get();
+          for (var doc in recentOrders.docs) {
+            try {
+              await FirebaseFirestore.instance
+                  .collection('orders')
+                  .doc(doc.id)
+                  .collection('items')
+                  .limit(20)
+                  .get();
+            } catch (_) {
+              // ignore per-order subcollection errors
+            }
+          }
+        } catch (_) {
+          // ignore; LoadingOverlay has its own timeout
+        }
+      }
+      // Show the reusable loading overlay with title "Logging in" and wait for prefetch
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.transparent,
+        builder: (context) => LoadingOverlay(
+          title: 'Logging in',
+          waitFor: prefetchStaffData(),
+          nextScreenBuilder: (_) => const StaffScreen(),
+        ),
       );
     } else {
       setState(() => _error = 'Incorrect username or password');

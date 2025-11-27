@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
 
+
 class StaffScreen extends StatefulWidget {
   const StaffScreen({super.key});
 
@@ -22,6 +23,8 @@ class _StaffScreenState extends State<StaffScreen> {
   bool _showUserManager = false;
   bool _showOrdersManager = false;
   String? _selectedUserDocId;
+  String? _selectedUserName;
+  final String _protectedUser = 'mathewsa';
   int? _selectedOrderIndex;
   bool _showSalesDetails = false;
 
@@ -31,6 +34,8 @@ class _StaffScreenState extends State<StaffScreen> {
   List<String> _topToppings = [];
   Map<String, List<FlSpot>> _toppingSpots = {};
   int? _selectedToppingIndex;
+  Set<String> _visibleToppings = {};
+  Map<String, double> _toppingsTotals = {};
 
   List<FlSpot> _salesSpots = [];
   List<FlSpot> _targetSaleSpots = [];
@@ -49,6 +54,14 @@ class _StaffScreenState extends State<StaffScreen> {
 
   double _todaySales = 0.0;
   double _todayTarget = 0.0;
+
+  final List<Color> _toppingColors = [
+    AppColors.pink700,
+    Colors.deepOrange,
+    AppColors.salmon400,
+    Colors.teal,
+    Colors.indigo,
+  ];
 
   void _showManageOrders() {
     setState(() {
@@ -248,6 +261,12 @@ class _StaffScreenState extends State<StaffScreen> {
 
   Future<void> _deleteUser() async {
     if (_selectedUserDocId != null) {
+      if ((_selectedUserName ?? '').toLowerCase() == _protectedUser) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This account cannot be deleted.')),
+        );
+        return;
+      }
       final confirm = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -277,6 +296,7 @@ class _StaffScreenState extends State<StaffScreen> {
         setState(() {
           _selectedUserIndex = null;
           _selectedUserDocId = null;
+          _selectedUserName = null;
         });
       }
     }
@@ -818,41 +838,127 @@ class _StaffScreenState extends State<StaffScreen> {
 
       counts.putIfAbsent(label, () => {});
 
-      // inspect toppings fields for each item; robust to different shapes
-      for (var item in items) {
-        List<String> extractList(dynamic v) {
-          final out = <String>[];
-          if (v == null) return out;
-          if (v is String) {
-            out.add(v);
-          } else if (v is List) {
-            for (var e in v) {
-              if (e is String) out.add(e);
-              else if (e is Map) {
-                final n = e['name'] ?? e['title'] ?? e['label'] ?? e['topping'];
-                if (n is String) out.add(n);
-              }
+      // Helpers to robustly extract topping counts from various shapes
+      int _parseInt(dynamic v) {
+        if (v == null) return 0;
+        if (v is int) return v;
+        if (v is num) return v.toInt();
+        if (v is String) {
+          final n = int.tryParse(v);
+          if (n != null) return n;
+          // try to extract number from patterns like "(x3)" or "x3"
+          final m = RegExp(r'(\d+)').firstMatch(v);
+          if (m != null) return int.tryParse(m.group(1)!) ?? 0;
+        }
+        return 0;
+      }
+
+      Map<String, int> _parseToppingsField(dynamic v) {
+        final out = <String, int>{};
+        if (v == null) return out;
+
+        if (v is String) {
+          // Accept formats like "Pretzels(x1), Cherries(x2)" or "Pretzels, Cherries"
+          final parts = v.split(',');
+          for (var p in parts) {
+            final s = p.trim();
+            if (s.isEmpty) continue;
+            final m = RegExp(r'^(.+?)\s*\(?x?(\d+)\)?\s*$').firstMatch(s);
+            if (m != null) {
+              final name = m.group(1)!.trim();
+              final cnt = _parseInt(m.group(2));
+              out[name] = (out[name] ?? 0) + (cnt > 0 ? cnt : 1);
+            } else {
+              out[s] = (out[s] ?? 0) + 1;
             }
-          } else if (v is Map) {
-            final n = v['name'] ?? v['title'] ?? v['label'] ?? v['topping'];
-            if (n is String) out.add(n);
           }
           return out;
         }
 
+        if (v is Map) {
+          final name = (v['name'] ?? v['title'] ?? v['label'] ?? v['topping'])
+              ?.toString();
+          if (name != null && name.trim().isNotEmpty) {
+            // possible count keys
+            final cnt = _parseInt(v['count'] ??
+                v['qty'] ??
+                v['quantity'] ??
+                v['amount'] ??
+                v['x']);
+            out[name.trim()] = (out[name.trim()] ?? 0) + (cnt > 0 ? cnt : 1);
+          } else {
+            // maybe it's a map of name->count already
+            v.forEach((k, val) {
+              if (k is String) {
+                final key = k.trim();
+                if (key.isEmpty) return;
+                final cnt = _parseInt(val);
+                if (cnt > 0) out[key] = (out[key] ?? 0) + cnt;
+              }
+            });
+          }
+          return out;
+        }
+
+        if (v is List) {
+          for (var e in v) {
+            final sub = _parseToppingsField(e);
+            sub.forEach((k, val) => out[k] = (out[k] ?? 0) + val);
+          }
+          return out;
+        }
+
+        return out;
+      }
+
+      // iterate items and add counts, respecting item quantity and explicit toppingsCounts
+      for (var item in items) {
+        final itemQty = (item['quantity'] is int)
+            ? item['quantity'] as int
+            : (item['quantity'] is num)
+                ? (item['quantity'] as num).toInt()
+                : (item['qty'] is int)
+                    ? item['qty'] as int
+                    : (item['qty'] is num)
+                        ? (item['qty'] as num).toInt()
+                        : 1;
+
+        // If a prepared map of toppingsCounts exists, use it directly
+        if (item['toppingsCounts'] is Map) {
+          final tc = Map<String, dynamic>.from(item['toppingsCounts'] as Map);
+          tc.forEach((k, v) {
+            final name = k.toString().trim();
+            if (name.isEmpty) return;
+            final cnt = _parseInt(v);
+            if (cnt <= 0) return;
+            counts[label]![name] = (counts[label]![name] ?? 0) + cnt * itemQty;
+          });
+          continue;
+        }
+
+        // Otherwise inspect candidate fields and parse counts
         final candidates = <dynamic>[
           item['toppings'],
           item['selectedToppings'],
           item['extras'],
           item['topping'],
-          item['toppingsSelected']
+          item['toppingsSelected'],
+          item['toppingsSummary']
         ];
+
+        final perItemCounts = <String, int>{};
         for (var c in candidates) {
-          for (final name in extractList(c)) {
-            if (name.trim().isEmpty) continue;
-            counts[label]![name] = (counts[label]![name] ?? 0) + 1;
-          }
+          final parsed = _parseToppingsField(c);
+          parsed.forEach(
+              (k, v) => perItemCounts[k] = (perItemCounts[k] ?? 0) + v);
         }
+
+        // merge perItemCounts into daily counts, multiplied by item quantity
+        perItemCounts.forEach((k, v) {
+          if (k.trim().isEmpty) return;
+          counts[label]![k] =
+              (counts[label]![k] ?? 0) + v * (itemQty > 0 ? itemQty : 1);
+        });
       }
     }
 
@@ -886,6 +992,8 @@ class _StaffScreenState extends State<StaffScreen> {
       _toppingsLabels = labels;
       _topToppings = top5;
       _toppingSpots = spots;
+      _visibleToppings = Set.from(top5);
+      _toppingsTotals = Map.fromEntries(totals.entries.map((e) => MapEntry(e.key, e.value.toDouble())));
       _loadingToppings = false;
     });
   }
@@ -911,6 +1019,25 @@ class _StaffScreenState extends State<StaffScreen> {
     );
   }
 
+  // small helper for toppings period filter (updates toppings chart)
+  Widget _buildToppingsFilterButton(String value, String label) {
+    final isSelected = _salesFilter == value;
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: isSelected ? AppColors.pink700 : Colors.white,
+        foregroundColor: isSelected ? Colors.white : AppColors.pink700,
+        side: BorderSide(color: AppColors.pink700),
+      ),
+      onPressed: () async {
+        if (_salesFilter != value) {
+          setState(() => _salesFilter = value);
+          await _fetchToppingsData();
+        }
+      },
+      child: Text(label),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -919,6 +1046,7 @@ class _StaffScreenState extends State<StaffScreen> {
     _fetchAllCakeNames();
     _fetchTargetSale();
     _fetchTodaySalesAndTarget();
+    _fetchToppingsData();
   }
 
   @override
@@ -1329,10 +1457,22 @@ class _StaffScreenState extends State<StaffScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Toppings placed (top 5)',
+                    const Text('Favorite toppings placed',
                         style:
                             TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
+                    // period filter for toppings chart
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildToppingsFilterButton('days', 'Days'),
+                        const SizedBox(width: 8),
+                        _buildToppingsFilterButton('months', 'Months'),
+                        const SizedBox(width: 8),
+                        _buildToppingsFilterButton('year', 'Year'),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     if (_loadingToppings)
                       const Center(child: CircularProgressIndicator())
                     else if (_toppingSpots.isEmpty || _topToppings.isEmpty)
@@ -1340,48 +1480,121 @@ class _StaffScreenState extends State<StaffScreen> {
                     else
                       SizedBox(
                         height: 300,
-                        child: LineChart(
-                          LineChartData(
-                            gridData: FlGridData(show: true),
-                            titlesData: FlTitlesData(
-                              leftTitles: AxisTitles(
-                                sideTitles: SideTitles(showTitles: true),
-                              ),
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget: (value, meta) {
-                                    final idx = value.toInt();
-                                    if (_toppingsLabels.isEmpty) return const SizedBox.shrink();
-                                    if (idx < 0 || idx >= _toppingsLabels.length) return const SizedBox.shrink();
-                                    final label = _toppingsLabels[idx];
-                                    if (_salesFilter == 'days') {
-                                      final d = DateTime.tryParse(label);
-                                      if (d != null) return Text(DateFormat('d MMM').format(d), style: const TextStyle(fontSize: 10));
+                        child: Builder(
+                          builder: (context) {
+                            // collect all Y values across toppings to compute min/max
+                            final allY = <double>[];
+                            for (final spots in _toppingSpots.values) {
+                              for (final s in spots) allY.add(s.y);
+                            }
+                            final minY = allY.isNotEmpty ? allY.reduce((a, b) => a < b ? a : b) : 0.0;
+                            final maxY = allY.isNotEmpty ? allY.reduce((a, b) => a > b ? a : b) : 30.0;
+
+                            return LineChart(
+                              LineChartData(
+                                lineTouchData: LineTouchData(
+                                  touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
+                                    if (touchResponse != null &&
+                                        touchResponse.lineBarSpots != null &&
+                                        touchResponse.lineBarSpots!.isNotEmpty) {
+                                      final idx = touchResponse.lineBarSpots!.first.x.toInt();
+                                      setState(() {
+                                        _selectedToppingIndex = idx;
+                                      });
                                     }
-                                    return Text(label, style: const TextStyle(fontSize: 10));
                                   },
-                                  interval: (_toppingsLabels.length / 4).ceilToDouble().clamp(1, 999),
                                 ),
+                                gridData: FlGridData(show: true),
+                                titlesData: FlTitlesData(
+                                  leftTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      reservedSize: 48,
+                                      getTitlesWidget: (value, meta) {
+                                        if (_toppingSpots.isEmpty) return const SizedBox.shrink();
+                                        final minYLocal = minY;
+                                        final maxYLocal = maxY;
+                                        if ((maxYLocal - minYLocal).abs() < 1e-2) {
+                                          if ((value - minYLocal).abs() < 1e-2) {
+                                            return Padding(
+                                              padding: const EdgeInsets.only(right: 8.0),
+                                              child: Text(value.toInt().toString(), style: const TextStyle(fontSize: 12), textAlign: TextAlign.right),
+                                            );
+                                          }
+                                          return const SizedBox.shrink();
+                                        }
+                                        final step = (maxYLocal - minYLocal) / 4;
+                                        final ticks = List.generate(5, (i) => minYLocal + step * i);
+                                        for (final tick in ticks) {
+                                          if ((value - tick).abs() < step / 2) {
+                                            return Padding(
+                                              padding: const EdgeInsets.only(right: 8.0),
+                                              child: Text(tick.round().toString(), style: const TextStyle(fontSize: 12), textAlign: TextAlign.right),
+                                            );
+                                          }
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
+                                  ),
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      reservedSize: 48,
+                                      interval: (_toppingsLabels.length / 2).ceilToDouble().clamp(1, 999),
+                                      getTitlesWidget: (value, meta) {
+                                        final idx = value.toInt();
+                                        if (_toppingsLabels.isEmpty) return const SizedBox.shrink();
+                                        if (idx < 0 || idx >= _toppingsLabels.length) return const SizedBox.shrink();
+                                        if (idx == 0 || idx == _toppingsLabels.length - 1 || idx % ((_toppingsLabels.length / 4).ceil()) == 0) {
+                                          final label = _toppingsLabels[idx];
+                                          if (_salesFilter == 'days') {
+                                            final d = DateTime.tryParse(label);
+                                            if (d != null) return Text(DateFormat('d MMM').format(d), style: const TextStyle(fontSize: 11));
+                                          }
+                                          return Text(label, style: const TextStyle(fontSize: 11));
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
+                                  ),
+                                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                ),
+                                borderData: FlBorderData(show: false),
+                                minX: 0,
+                                maxX: _toppingsLabels.isNotEmpty ? (_toppingsLabels.length - 1).toDouble() : 4,
+                                minY: minY > 0 ? minY - 1 : 0,
+                                maxY: maxY + 1,
+                                lineBarsData: List.generate(_topToppings.length, (i) {
+                                  final name = _topToppings[i];
+                                  // if user toggled this topping off, skip rendering it
+                                  if (!_visibleToppings.contains(name)) return LineChartBarData(spots: [], isCurved: true, color: Colors.transparent, barWidth: 0);
+                                  final spots = _toppingSpots[name] ?? [];
+                                  final color = _toppingColors[i % _toppingColors.length];
+                                  return LineChartBarData(
+                                    spots: spots,
+                                    isCurved: true,
+                                    color: color,
+                                    barWidth: 3,
+                                    dotData: FlDotData(
+                                      show: true,
+                                      getDotPainter: (spot, percent, barData, index) {
+                                        return FlDotCirclePainter(
+                                          radius: 4,
+                                          color: color,
+                                          strokeWidth: 2,
+                                          strokeColor: Colors.white,
+                                        );
+                                      },
+                                    ),
+                                  );
+                                }),
                               ),
-                            ),
-                            minX: 0,
-                            maxX: _toppingsLabels.isNotEmpty ? (_toppingsLabels.length - 1).toDouble() : 4,
-                            lineBarsData: List.generate(_topToppings.length, (i) {
-                              final name = _topToppings[i];
-                              final spots = _toppingSpots[name] ?? [];
-                              final colors = [AppColors.pink700, AppColors.pink500, AppColors.salmon400, AppColors.peach300, Colors.teal];
-                              return LineChartBarData(
-                                spots: spots,
-                                isCurved: true,
-                                color: colors[i % colors.length],
-                                barWidth: 2,
-                                dotData: const FlDotData(show: false),
-                              );
-                            }),
-                          ),
+                            );
+                          },
                         ),
-                      ),
+                       ),
                     const SizedBox(height: 12),
                     // legend
                     Wrap(
@@ -1389,10 +1602,36 @@ class _StaffScreenState extends State<StaffScreen> {
                       runSpacing: 8,
                       children: List.generate(_topToppings.length, (i) {
                         final name = _topToppings[i];
-                        final colors = [AppColors.pink700, AppColors.pink500, AppColors.salmon400, AppColors.peach300, Colors.teal];
-                        return Chip(
-                          backgroundColor: colors[i % colors.length].withOpacity(0.15),
-                          label: Text(name),
+                        final color = _toppingColors[i % _toppingColors.length];
+                        final visible = _visibleToppings.contains(name);
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              if (visible) {
+                                _visibleToppings.remove(name);
+                              } else {
+                                _visibleToppings.add(name);
+                              }
+                            });
+                          },
+                          child: Chip(
+                            backgroundColor: visible ? color.withOpacity(0.12) : Colors.grey.shade200,
+                            shape: RoundedRectangleBorder(
+                              side: BorderSide(color: visible ? color.withOpacity(0.35) : Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            avatar: CircleAvatar(
+                              radius: 8,
+                              backgroundColor: visible ? color : Colors.grey.shade400,
+                            ),
+                            label: Text(
+                              name,
+                              style: TextStyle(
+                                color: visible ? Colors.black87 : Colors.black45,
+                                fontWeight: visible ? FontWeight.w600 : FontWeight.normal,
+                              ),
+                            ),
+                          ),
                         );
                       }),
                     ),
@@ -1487,6 +1726,8 @@ class _StaffScreenState extends State<StaffScreen> {
                       onTap: () {
                         setState(() {
                           _selectedOrderIndex = index;
+                          _selectedUserName = data['user']?.toString();
+                          _selectedUserDocId = docs[index].id;
                         });
                       },
                       onDoubleTap: () async {
@@ -1588,9 +1829,18 @@ class _StaffScreenState extends State<StaffScreen> {
                               setState(() {
                                 _selectedUserIndex = index;
                                 _selectedUserDocId = docs[index].id;
+                                _selectedUserName = (data['user'] ?? '').toString();
                               });
                             },
                             onDoubleTap: () async {
+                              // Prevent editing protected user
+                              final selName = (data['user'] ?? '').toString().toLowerCase();
+                              if (selName == _protectedUser) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('This account cannot be edited.')),
+                                );
+                                return;
+                              }
                               final emailController = TextEditingController(
                                   text: data['user'] ?? '');
                               final passwordController = TextEditingController(
@@ -1679,6 +1929,10 @@ class _StaffScreenState extends State<StaffScreen> {
                                     .collection('users')
                                     .doc(docs[index].id)
                                     .update(result);
+                                    // keep local selected name in sync
+                                setState(() {
+                                  _selectedUserName = result['user']?.toString();
+                                });
                               }
                             },
                             child: AnimatedContainer(
@@ -1744,10 +1998,14 @@ class _StaffScreenState extends State<StaffScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: AnimatedHoverButton(
-                        label: 'Delete',
-                        icon: Icons.delete,
-                        onTap: _selectedUserDocId != null ? _deleteUser : null,
-                      ),
+                            label: 'Delete',
+                            icon: Icons.delete,
+                            // disable delete when selected user is protected
+                            onTap: (_selectedUserDocId != null &&
+                                    (_selectedUserName?.toLowerCase() != _protectedUser))
+                                ? _deleteUser
+                                : null,
+                          ),
                     ),
                   ],
                 ),
@@ -1784,35 +2042,71 @@ class _StaffScreenState extends State<StaffScreen> {
                     Expanded(
                       child: _HoverPieCard(
                         title: 'Toppings Used',
-                        pie: _SamplePieChart(
-                          sections: [
-                            PieChartSectionData(
-                              color: AppColors.peach300,
-                              value: 50,
-                              title: 'Flour',
-                              radius: 48,
-                              titleStyle: const TextStyle(
-                                  fontSize: 12, color: Colors.white),
+                        // dynamically build pie from current top 5 toppings
+                        pie: Builder(builder: (context) {
+                          final dataTotals = _toppingsTotals.isNotEmpty
+                              ? _toppingsTotals
+                              : Map.fromEntries(_toppingSpots.entries.map((e) =>
+                                  MapEntry(e.key, e.value.fold<double>(0.0, (s, sp) => s + sp.y))));
+
+                          final toppingsForPie = _topToppings.isNotEmpty
+                              ? _topToppings
+                              : dataTotals.keys.toList();
+
+                          // prepare pairs and compute total
+                          final pairs = <MapEntry<String, double>>[];
+                          for (int i = 0; i < toppingsForPie.length && i < 5; i++) {
+                            final name = toppingsForPie[i];
+                            final val = (dataTotals[name] ?? 0.0).clamp(0.0, double.infinity);
+                            pairs.add(MapEntry(name, val));
+                          }
+                          final total = pairs.fold<double>(0.0, (s, e) => s + e.value);
+
+                          final sections = <PieChartSectionData>[];
+                          for (int i = 0; i < pairs.length; i++) {
+                            final name = pairs[i].key;
+                            final value = pairs[i].value;
+                            final color = _toppingColors[i % _toppingColors.length];
+                            final percent = total > 0 ? value / total * 100.0 : 0.0;
+                            final title = percent >= 1.0 ? '${percent.round()}%' : ''; // avoid clutter for <1%
+                            sections.add(PieChartSectionData(
+                              color: color,
+                              value: value > 0 ? value : 0.0001,
+                              title: title,
+                              radius: 44,
+                              titleStyle: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
+                            ));
+                          }
+
+                          return PieChart(
+                            PieChartData(
+                              sections: sections,
+                              centerSpaceRadius: 18,
+                              sectionsSpace: 2,
+                              borderData: FlBorderData(show: false),
                             ),
-                            PieChartSectionData(
-                              color: AppColors.pink700,
-                              value: 30,
-                              title: 'Eggs',
-                              radius: 48,
-                              titleStyle: const TextStyle(
-                                  fontSize: 12, color: Colors.white),
-                            ),
-                            PieChartSectionData(
-                              color: AppColors.salmon400,
-                              value: 20,
-                              title: 'Sugar',
-                              radius: 48,
-                              titleStyle: const TextStyle(
-                                  fontSize: 12, color: Colors.white),
-                            ),
-                          ],
-                        ),
+                          );
+                        }),
                         onDoubleTap: _showToppingsDetailsScreen,
+                        info: (() {
+                          // pick the favorite topping (highest total)
+                          if (_toppingsTotals.isEmpty && _toppingSpots.isNotEmpty) {
+                            // fallback compute totals from spots
+                            final fallback = <String, double>{};
+                            _toppingSpots.forEach((k, v) {
+                              fallback[k] = v.fold<double>(0.0, (s, sp) => s + sp.y);
+                            });
+                            if (fallback.isNotEmpty) {
+                              final best = fallback.entries.reduce((a, b) => a.value >= b.value ? a : b);
+                              return 'Customer\'s Favorite Topping: ${best.key} (${best.value.toInt()})';
+                            }
+                            return 'Customer\'s Favorite Topping: -';
+                          } else if (_toppingsTotals.isNotEmpty) {
+                            final best = _toppingsTotals.entries.reduce((a, b) => a.value >= b.value ? a : b);
+                            return 'Customer\'s Favorite Topping: ${best.key} (${best.value.toInt()})';
+                          }
+                          return 'Customer\'s Favorite Topping: -';
+                        })(),
                       ),
                     ),
                   ],
@@ -1954,15 +2248,19 @@ class _HoverPieCardState extends State<_HoverPieCard> {
         context: context,
         builder: (context) => AlertDialog(
           title: Text(widget.title),
-          content: Text(widget.info!),
+          content: SingleChildScrollView(
+            child: Text(
+              widget.info!,
+              softWrap: true,
+            ),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Close'),
             ),
           ],
-        ),
-      );
+        ));
     }
   }
 
