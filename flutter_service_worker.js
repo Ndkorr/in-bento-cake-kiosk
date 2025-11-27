@@ -5,8 +5,8 @@ const CACHE_NAME = 'flutter-app-cache';
 
 const RESOURCES = {"flutter.js": "f393d3c16b631f36852323de8e583132",
 "manifest.json": "664caf8b2e29395c77a244ca2f02d135",
-"index.html": "f1258831686a8793ce069ab1d10d7760",
-"/": "f1258831686a8793ce069ab1d10d7760",
+"index.html": "010c7a8667ed3e23b7bd2ac352ee7aa4",
+"/": "010c7a8667ed3e23b7bd2ac352ee7aa4",
 "assets/shaders/ink_sparkle.frag": "ecc85a2e95f5e9f53123dcaf8cb9b6ce",
 "assets/AssetManifest.bin.json": "560b83ff1a8bd9f56958413ea28700d6",
 "assets/assets/icons/icon.png": "eb11fd097199c3e7c7ebb7319cbb2037",
@@ -16,7 +16,7 @@ const RESOURCES = {"flutter.js": "f393d3c16b631f36852323de8e583132",
 "assets/assets/images/cake_3.png": "afb02439ecc87f8c3fbb7352ed602598",
 "assets/assets/images/cake_promo_2.png": "d952eadef903ba675f353e115c1ab986",
 "assets/assets/images/kiosk%2520flowchart.png": "66068cf35a1d8b7d4602fe47177709b3",
-"assets/assets/images/cake_2.png": "0ba30bfb7e32c41d31b52609ffcd8780",
+"assets/assets/images/cake_2.png": "159ab392f80ce952b61f21c66625522b",
 "assets/assets/images/cake_promo_3.png": "39380e11c6b3fad05eccefec42fe0a87",
 "assets/assets/images/cake_1.png": "6c8047081c308dd63ffa3bdde33e6fd6",
 "assets/assets/cake_layers/full_view/heartshaped/2layers/vanilla.glb": "40bd93766124d3237cbc06be64f26628",
@@ -170,9 +170,9 @@ const RESOURCES = {"flutter.js": "f393d3c16b631f36852323de8e583132",
 "canvaskit/skwasm.js.symbols": "262f4827a1317abb59d71d6c587a93e2",
 "favicon.png": "5dcef449791fa27946b3d35ad8803796",
 "icon_nobg.png": "7ee13267ad24f03d13268ff06e047cb3",
-"flutter_bootstrap.js": "f2c2f5d48b47d2c0e65ce461383c24d1",
-"version.json": "d18c5774b32fe5d7c81266e161350e3e",
-"main.dart.js": "51189e5fd37734f327c6a583e5c56665"};
+"flutter_bootstrap.js": "89ada576f60d7a3262616dbccdbf327f",
+"version.json": "8f7e37bb3ff97e568e1e1882fc84fdb1",
+"main.dart.js": "a3b59c4c075572b3095c2e61e77fe473"};
 // The application shell files that are downloaded before a service worker can
 // start.
 const CORE = ["main.dart.js",
