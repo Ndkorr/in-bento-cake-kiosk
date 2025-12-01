@@ -42,7 +42,7 @@ dependencies:
   cloud_firestore: ^4.13.5
   shimmer: ^3.0.0
   flutter_svg: ^2.2.3
-  url_launcher: ^6.3.2
+  url_launcher: ^6.2.6
   qr_flutter: ^4.1.0
 
 
