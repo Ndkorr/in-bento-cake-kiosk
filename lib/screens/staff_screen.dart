@@ -8,7 +8,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
-
+import 'package:shimmer/shimmer.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class StaffScreen extends StatefulWidget {
   const StaffScreen({super.key});
@@ -54,6 +57,8 @@ class _StaffScreenState extends State<StaffScreen> {
 
   double _todaySales = 0.0;
   double _todayTarget = 0.0;
+
+  double? _defaultDailyTarget;
 
   final List<Color> _toppingColors = [
     AppColors.pink700,
@@ -208,6 +213,70 @@ class _StaffScreenState extends State<StaffScreen> {
     return sales;
   }
 
+  Future<Map<String, dynamic>> _computeToppingsTotalsFromDocs(
+      List<QueryDocumentSnapshot> docs) async {
+    final Map<String, double> totals = {};
+
+    for (var doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final items = await _loadOrderItems(doc.id, data);
+
+      for (var item in items) {
+        final itemQty = (item['quantity'] is int)
+            ? item['quantity'] as int
+            : (item['quantity'] is num)
+                ? (item['quantity'] as num).toInt()
+                : 1;
+
+        // Parse toppings from the item
+        final toppingsData = item['toppingsCounts'] ??
+            item['toppings'] ??
+            item['selectedToppings'] ??
+            item['extras'];
+
+        if (toppingsData is Map) {
+          toppingsData.forEach((key, value) {
+            final name = key.toString().trim();
+            if (name.isNotEmpty) {
+              final count = (value is num) ? value.toDouble() : 1.0;
+              totals[name] = (totals[name] ?? 0.0) + (count * itemQty);
+            }
+          });
+        } else if (toppingsData is List) {
+          for (var topping in toppingsData) {
+            if (topping is Map) {
+              final name = (topping['name'] ??
+                      topping['title'] ??
+                      topping['label'] ??
+                      '')
+                  .toString()
+                  .trim();
+              if (name.isNotEmpty) {
+                final count = (topping['count'] ?? topping['qty'] ?? 1);
+                final countDouble = (count is num) ? count.toDouble() : 1.0;
+                totals[name] = (totals[name] ?? 0.0) + (countDouble * itemQty);
+              }
+            } else if (topping is String) {
+              final name = topping.trim();
+              if (name.isNotEmpty) {
+                totals[name] = (totals[name] ?? 0.0) + itemQty;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Sort by usage count descending
+    final topList = totals.keys.toList()
+      ..sort((a, b) => totals[b]!.compareTo(totals[a]!));
+
+    return {
+      'totals': totals,
+      'top': topList,
+    };
+  }
+
   Future<void> _addUser() async {
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
@@ -319,6 +388,23 @@ class _StaffScreenState extends State<StaffScreen> {
     }
   }
 
+  Future<void> _loadDefaultDailyTarget() async {
+    try {
+      final settingsSnapshot = await FirebaseFirestore.instance
+          .collection('settings')
+          .doc('targetSales')
+          .get();
+      if (settingsSnapshot.exists && settingsSnapshot.data() != null) {
+        _defaultDailyTarget =
+            (settingsSnapshot.data()!['defaultDaily'] as num?)?.toDouble();
+      } else {
+        _defaultDailyTarget = null;
+      }
+    } catch (_) {
+      _defaultDailyTarget = null;
+    }
+  }
+
   Future<void> _fetchTargetSaleSpots() async {
     _targetSaleSpots = [];
     final periodCollection = FirebaseFirestore.instance
@@ -341,7 +427,7 @@ class _StaffScreenState extends State<StaffScreen> {
 
       if (_salesFilter == 'days') {
         // Direct match
-        target = dailyTargets[label] ?? 0.0;
+        target = dailyTargets[label] ?? (_defaultDailyTarget ?? 0.0);
       } else if (_salesFilter == 'months') {
         // Sum all daily targets in this month
         target = dailyTargets.entries
@@ -382,9 +468,12 @@ class _StaffScreenState extends State<StaffScreen> {
       final doc = allDocs.docs.where((d) => d.id == period).isNotEmpty
           ? allDocs.docs.firstWhere((d) => d.id == period)
           : null;
-      target = doc != null && doc.data()['value'] != null
-          ? (doc.data()['value'] as num).toDouble()
-          : null;
+      if (doc != null && doc.data()['value'] != null) {
+        target = (doc.data()['value'] as num).toDouble();
+      } else {
+        // fallback to defaultDaily if set, otherwise null
+        target = _defaultDailyTarget;
+      }
     } else if (_salesFilter == 'months') {
       target = allDocs.docs.where((d) => d.id.startsWith(period)).fold(0.0,
           (sum, d) => sum! + ((d.data()['value'] as num?)?.toDouble() ?? 0.0));
@@ -440,6 +529,9 @@ class _StaffScreenState extends State<StaffScreen> {
       if (!doc.exists) {
         await periodRef.set({'value': value});
       }
+      setState(() {
+        _defaultDailyTarget = value;
+      });
       await _fetchTargetSale();
       await _fetchTodaySalesAndTarget();
     }
@@ -768,7 +860,7 @@ class _StaffScreenState extends State<StaffScreen> {
         .get();
     final target = (targetDoc.exists && targetDoc.data()?['value'] != null)
         ? (targetDoc.data()!['value'] as num).toDouble()
-        : 0.0;
+        : (_defaultDailyTarget ?? 0.0);
 
     setState(() {
       _todaySales = sales;
@@ -791,6 +883,261 @@ class _StaffScreenState extends State<StaffScreen> {
       _showToppingsDetails = true;
     });
     _fetchToppingsData();
+  }
+
+  void _showAboutScreen() {
+    const appName = 'In Bento Cake Kiosk';
+    const fullVersion = '5.5.0+1';
+    final displayVersion = fullVersion.split('+').first;
+    const repoUrl = 'https://github.com/Ndkorr/in-bento-cake-kiosk';
+    const supportEmail = 'mathewastorga321@gmail.com';
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: const Text('About'),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          body: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Inbento icon (use asset, fallback to text box)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: SizedBox(
+                          width: 96,
+                          height: 96,
+                          child: Image.asset(
+                            'assets/icons/icon.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (ctx, err, st) => Container(
+                              width: 96,
+                              height: 96,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border:
+                                    Border.all(color: Colors.black, width: 2),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'Inbento\nIcon',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+                      Text(appName,
+                          style: const TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      Text('Version $displayVersion',
+                          style: const TextStyle(fontSize: 14)),
+                      const SizedBox(height: 20),
+
+                      const SizedBox(height: 22),
+                      const Text(
+                        'A kiosk that allows customers to create, or "invent", their own unique cake/s.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('Built with Flutter and Firebase.',
+                          textAlign: TextAlign.center),
+
+                      const SizedBox(height: 28),
+
+                      // Licenses & Agreement button (matching Contact Support style)
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side:
+                                BorderSide(color: AppColors.pink700, width: 2),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                            backgroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            showLicensePage(
+                              context: context,
+                              applicationName: appName,
+                              applicationVersion: displayVersion,
+                            );
+                          },
+                          child: const Text(
+                            'Licenses & Agreement',
+                            style: TextStyle(fontSize: 16, color: Colors.black),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Contact Support button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side:
+                                BorderSide(color: AppColors.pink700, width: 2),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                          ),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Contact Support'),
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Email: $supportEmail'),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                        'For urgent help, call your support line.'),
+                                  ],
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Clipboard.setData(const ClipboardData(
+                                          text: supportEmail));
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                            content: Text(
+                                                'Email copied to clipboard')),
+                                      );
+                                    },
+                                    child: const Text('Copy Email'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Close'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Contact Support',
+                            style: TextStyle(fontSize: 16, color: Colors.black),
+                          ),
+                        ),
+                      ),
+
+                      Center(
+                        child: Container(
+                          margin: const EdgeInsets.only(
+                              top: 70.0,
+                              bottom: 2.0), // <-- vertical spacing here
+                          child: InkWell(
+                            onTap: () async {
+                              final uri = Uri.parse(repoUrl);
+                              final opened = await launchUrl(uri,
+                                  mode: LaunchMode.externalApplication);
+                              if (!opened) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text(
+                                          'Could not open repository URL')),
+                                );
+                              }
+                            },
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(
+                                      6.0), // small padding around icon
+                                  child: SvgPicture.asset(
+                                    'assets/icons/github.svg',
+                                    width: 40,
+                                    height: 40,
+                                    placeholderBuilder: (context) =>
+                                        const SizedBox(
+                                      width: 40,
+                                      height: 40,
+                                      child: Center(
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(
+                                    height: 4), // space between icon and label
+                                const Text('Docs',
+                                    style: TextStyle(fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Show about dialog with app info
+  void _showAboutDialog() {
+    // Values taken from pubspec.yaml
+    const appName = 'In Bento Kiosk';
+    const appVersion = '5.5.0+1';
+
+    showAboutDialog(
+      context: context,
+      applicationName: appName,
+      applicationVersion: appVersion,
+      applicationLegalese: '© ${DateTime.now().year} In Bento',
+      children: [
+        const SizedBox(height: 8),
+        const Text(
+          'A kiosk that allows customers to create, or "invent", their own unique cake/s.',
+        ),
+        const SizedBox(height: 8),
+        const Text('Built with Flutter and Firebase.'),
+        const SizedBox(height: 8),
+        const Text('Repository: https://github.com/Ndkorr/in-bento-cake-kiosk'),
+      ],
+    );
   }
 
   // Fetch counts of toppings by period (days/months/year) and prepare line chart data.
@@ -993,9 +1340,67 @@ class _StaffScreenState extends State<StaffScreen> {
       _topToppings = top5;
       _toppingSpots = spots;
       _visibleToppings = Set.from(top5);
-      _toppingsTotals = Map.fromEntries(totals.entries.map((e) => MapEntry(e.key, e.value.toDouble())));
+      _toppingsTotals = Map.fromEntries(
+          totals.entries.map((e) => MapEntry(e.key, e.value.toDouble())));
       _loadingToppings = false;
     });
+  }
+
+  Widget _shimmerPieCard(
+      {double height = 260, double width = double.infinity}) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Card(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 6,
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Center(
+            child: Container(
+              height: 180,
+              width: (width == double.infinity) ? 160 : width * 0.67,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _shimmerChartArea(
+      {double height = 220, double width = double.infinity}) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Card(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        elevation: 2,
+        child: SizedBox(
+          height: height,
+          width: width,
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(height: 12, color: Colors.white),
+                const SizedBox(height: 8),
+                Container(height: 12, width: 200, color: Colors.white),
+                const SizedBox(height: 12),
+                Expanded(child: Container(color: Colors.white)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildFilterButton(String value, String label) {
@@ -1043,10 +1448,13 @@ class _StaffScreenState extends State<StaffScreen> {
     super.initState();
     _allCakeNames = [];
     _selectedCakeNames = [];
-    _fetchAllCakeNames();
-    _fetchTargetSale();
-    _fetchTodaySalesAndTarget();
-    _fetchToppingsData();
+    // Load defaultDaily first so fetches can fallback to it when needed.
+    _loadDefaultDailyTarget().then((_) {
+      _fetchAllCakeNames();
+      _fetchTargetSale();
+      _fetchTodaySalesAndTarget();
+      _fetchToppingsData();
+    });
   }
 
   @override
@@ -1150,7 +1558,7 @@ class _StaffScreenState extends State<StaffScreen> {
                           height: 220,
                           width: double.infinity,
                           child: _loadingSales
-                              ? const Center(child: CircularProgressIndicator())
+                              ? _shimmerChartArea(height: 220)
                               : _salesSpots.isEmpty
                                   ? const Center(child: Text('No sales data'))
                                   : Builder(
@@ -1456,10 +1864,11 @@ class _StaffScreenState extends State<StaffScreen> {
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text('Favorite toppings placed',
-                        style:
-                            TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
                     // period filter for toppings chart
                     Row(
@@ -1474,7 +1883,10 @@ class _StaffScreenState extends State<StaffScreen> {
                     ),
                     const SizedBox(height: 8),
                     if (_loadingToppings)
-                      const Center(child: CircularProgressIndicator())
+                      SizedBox(
+                        width: double.infinity,
+                        child: _shimmerChartArea(height: 300),
+                      )
                     else if (_toppingSpots.isEmpty || _topToppings.isEmpty)
                       const Center(child: Text('No toppings data'))
                     else
@@ -1487,17 +1899,25 @@ class _StaffScreenState extends State<StaffScreen> {
                             for (final spots in _toppingSpots.values) {
                               for (final s in spots) allY.add(s.y);
                             }
-                            final minY = allY.isNotEmpty ? allY.reduce((a, b) => a < b ? a : b) : 0.0;
-                            final maxY = allY.isNotEmpty ? allY.reduce((a, b) => a > b ? a : b) : 30.0;
+                            final minY = allY.isNotEmpty
+                                ? allY.reduce((a, b) => a < b ? a : b)
+                                : 0.0;
+                            final maxY = allY.isNotEmpty
+                                ? allY.reduce((a, b) => a > b ? a : b)
+                                : 30.0;
 
                             return LineChart(
                               LineChartData(
                                 lineTouchData: LineTouchData(
-                                  touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
+                                  touchCallback: (FlTouchEvent event,
+                                      LineTouchResponse? touchResponse) {
                                     if (touchResponse != null &&
                                         touchResponse.lineBarSpots != null &&
-                                        touchResponse.lineBarSpots!.isNotEmpty) {
-                                      final idx = touchResponse.lineBarSpots!.first.x.toInt();
+                                        touchResponse
+                                            .lineBarSpots!.isNotEmpty) {
+                                      final idx = touchResponse
+                                          .lineBarSpots!.first.x
+                                          .toInt();
                                       setState(() {
                                         _selectedToppingIndex = idx;
                                       });
@@ -1511,25 +1931,40 @@ class _StaffScreenState extends State<StaffScreen> {
                                       showTitles: true,
                                       reservedSize: 48,
                                       getTitlesWidget: (value, meta) {
-                                        if (_toppingSpots.isEmpty) return const SizedBox.shrink();
+                                        if (_toppingSpots.isEmpty)
+                                          return const SizedBox.shrink();
                                         final minYLocal = minY;
                                         final maxYLocal = maxY;
-                                        if ((maxYLocal - minYLocal).abs() < 1e-2) {
-                                          if ((value - minYLocal).abs() < 1e-2) {
+                                        if ((maxYLocal - minYLocal).abs() <
+                                            1e-2) {
+                                          if ((value - minYLocal).abs() <
+                                              1e-2) {
                                             return Padding(
-                                              padding: const EdgeInsets.only(right: 8.0),
-                                              child: Text(value.toInt().toString(), style: const TextStyle(fontSize: 12), textAlign: TextAlign.right),
+                                              padding: const EdgeInsets.only(
+                                                  right: 8.0),
+                                              child: Text(
+                                                  value.toInt().toString(),
+                                                  style: const TextStyle(
+                                                      fontSize: 12),
+                                                  textAlign: TextAlign.right),
                                             );
                                           }
                                           return const SizedBox.shrink();
                                         }
-                                        final step = (maxYLocal - minYLocal) / 4;
-                                        final ticks = List.generate(5, (i) => minYLocal + step * i);
+                                        final step =
+                                            (maxYLocal - minYLocal) / 4;
+                                        final ticks = List.generate(
+                                            5, (i) => minYLocal + step * i);
                                         for (final tick in ticks) {
                                           if ((value - tick).abs() < step / 2) {
                                             return Padding(
-                                              padding: const EdgeInsets.only(right: 8.0),
-                                              child: Text(tick.round().toString(), style: const TextStyle(fontSize: 12), textAlign: TextAlign.right),
+                                              padding: const EdgeInsets.only(
+                                                  right: 8.0),
+                                              child: Text(
+                                                  tick.round().toString(),
+                                                  style: const TextStyle(
+                                                      fontSize: 12),
+                                                  textAlign: TextAlign.right),
                                             );
                                           }
                                         }
@@ -1541,37 +1976,67 @@ class _StaffScreenState extends State<StaffScreen> {
                                     sideTitles: SideTitles(
                                       showTitles: true,
                                       reservedSize: 48,
-                                      interval: (_toppingsLabels.length / 2).ceilToDouble().clamp(1, 999),
+                                      interval: (_toppingsLabels.length / 2)
+                                          .ceilToDouble()
+                                          .clamp(1, 999),
                                       getTitlesWidget: (value, meta) {
                                         final idx = value.toInt();
-                                        if (_toppingsLabels.isEmpty) return const SizedBox.shrink();
-                                        if (idx < 0 || idx >= _toppingsLabels.length) return const SizedBox.shrink();
-                                        if (idx == 0 || idx == _toppingsLabels.length - 1 || idx % ((_toppingsLabels.length / 4).ceil()) == 0) {
+                                        if (_toppingsLabels.isEmpty)
+                                          return const SizedBox.shrink();
+                                        if (idx < 0 ||
+                                            idx >= _toppingsLabels.length)
+                                          return const SizedBox.shrink();
+                                        if (idx == 0 ||
+                                            idx == _toppingsLabels.length - 1 ||
+                                            idx %
+                                                    ((_toppingsLabels.length /
+                                                            4)
+                                                        .ceil()) ==
+                                                0) {
                                           final label = _toppingsLabels[idx];
                                           if (_salesFilter == 'days') {
                                             final d = DateTime.tryParse(label);
-                                            if (d != null) return Text(DateFormat('d MMM').format(d), style: const TextStyle(fontSize: 11));
+                                            if (d != null)
+                                              return Text(
+                                                  DateFormat('d MMM').format(d),
+                                                  style: const TextStyle(
+                                                      fontSize: 11));
                                           }
-                                          return Text(label, style: const TextStyle(fontSize: 11));
+                                          return Text(label,
+                                              style: const TextStyle(
+                                                  fontSize: 11));
                                         }
                                         return const SizedBox.shrink();
                                       },
                                     ),
                                   ),
-                                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                  rightTitles: const AxisTitles(
+                                      sideTitles:
+                                          SideTitles(showTitles: false)),
+                                  topTitles: const AxisTitles(
+                                      sideTitles:
+                                          SideTitles(showTitles: false)),
                                 ),
                                 borderData: FlBorderData(show: false),
                                 minX: 0,
-                                maxX: _toppingsLabels.isNotEmpty ? (_toppingsLabels.length - 1).toDouble() : 4,
+                                maxX: _toppingsLabels.isNotEmpty
+                                    ? (_toppingsLabels.length - 1).toDouble()
+                                    : 4,
                                 minY: minY > 0 ? minY - 1 : 0,
                                 maxY: maxY + 1,
-                                lineBarsData: List.generate(_topToppings.length, (i) {
+                                lineBarsData:
+                                    List.generate(_topToppings.length, (i) {
                                   final name = _topToppings[i];
                                   // if user toggled this topping off, skip rendering it
-                                  if (!_visibleToppings.contains(name)) return LineChartBarData(spots: [], isCurved: true, color: Colors.transparent, barWidth: 0);
+                                  if (!_visibleToppings.contains(name))
+                                    return LineChartBarData(
+                                        spots: [],
+                                        isCurved: true,
+                                        color: Colors.transparent,
+                                        barWidth: 0);
                                   final spots = _toppingSpots[name] ?? [];
-                                  final color = _toppingColors[i % _toppingColors.length];
+                                  final color =
+                                      _toppingColors[i % _toppingColors.length];
                                   return LineChartBarData(
                                     spots: spots,
                                     isCurved: true,
@@ -1579,7 +2044,8 @@ class _StaffScreenState extends State<StaffScreen> {
                                     barWidth: 3,
                                     dotData: FlDotData(
                                       show: true,
-                                      getDotPainter: (spot, percent, barData, index) {
+                                      getDotPainter:
+                                          (spot, percent, barData, index) {
                                         return FlDotCirclePainter(
                                           radius: 4,
                                           color: color,
@@ -1594,7 +2060,7 @@ class _StaffScreenState extends State<StaffScreen> {
                             );
                           },
                         ),
-                       ),
+                      ),
                     const SizedBox(height: 12),
                     // legend
                     Wrap(
@@ -1615,20 +2081,29 @@ class _StaffScreenState extends State<StaffScreen> {
                             });
                           },
                           child: Chip(
-                            backgroundColor: visible ? color.withOpacity(0.12) : Colors.grey.shade200,
+                            backgroundColor: visible
+                                ? color.withOpacity(0.12)
+                                : Colors.grey.shade200,
                             shape: RoundedRectangleBorder(
-                              side: BorderSide(color: visible ? color.withOpacity(0.35) : Colors.grey.shade400),
+                              side: BorderSide(
+                                  color: visible
+                                      ? color.withOpacity(0.35)
+                                      : Colors.grey.shade400),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             avatar: CircleAvatar(
                               radius: 8,
-                              backgroundColor: visible ? color : Colors.grey.shade400,
+                              backgroundColor:
+                                  visible ? color : Colors.grey.shade400,
                             ),
                             label: Text(
                               name,
                               style: TextStyle(
-                                color: visible ? Colors.black87 : Colors.black45,
-                                fontWeight: visible ? FontWeight.w600 : FontWeight.normal,
+                                color:
+                                    visible ? Colors.black87 : Colors.black45,
+                                fontWeight: visible
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
                               ),
                             ),
                           ),
@@ -1637,7 +2112,8 @@ class _StaffScreenState extends State<StaffScreen> {
                     ),
                     const SizedBox(height: 16),
                     TextButton(
-                      onPressed: () => setState(() => _showToppingsDetails = false),
+                      onPressed: () =>
+                          setState(() => _showToppingsDetails = false),
                       child: const Text('Close'),
                     ),
                   ],
@@ -1829,15 +2305,19 @@ class _StaffScreenState extends State<StaffScreen> {
                               setState(() {
                                 _selectedUserIndex = index;
                                 _selectedUserDocId = docs[index].id;
-                                _selectedUserName = (data['user'] ?? '').toString();
+                                _selectedUserName =
+                                    (data['user'] ?? '').toString();
                               });
                             },
                             onDoubleTap: () async {
                               // Prevent editing protected user
-                              final selName = (data['user'] ?? '').toString().toLowerCase();
+                              final selName =
+                                  (data['user'] ?? '').toString().toLowerCase();
                               if (selName == _protectedUser) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('This account cannot be edited.')),
+                                  const SnackBar(
+                                      content: Text(
+                                          'This account cannot be edited.')),
                                 );
                                 return;
                               }
@@ -1929,9 +2409,10 @@ class _StaffScreenState extends State<StaffScreen> {
                                     .collection('users')
                                     .doc(docs[index].id)
                                     .update(result);
-                                    // keep local selected name in sync
+                                // keep local selected name in sync
                                 setState(() {
-                                  _selectedUserName = result['user']?.toString();
+                                  _selectedUserName =
+                                      result['user']?.toString();
                                 });
                               }
                             },
@@ -1998,14 +2479,15 @@ class _StaffScreenState extends State<StaffScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: AnimatedHoverButton(
-                            label: 'Delete',
-                            icon: Icons.delete,
-                            // disable delete when selected user is protected
-                            onTap: (_selectedUserDocId != null &&
-                                    (_selectedUserName?.toLowerCase() != _protectedUser))
-                                ? _deleteUser
-                                : null,
-                          ),
+                        label: 'Delete',
+                        icon: Icons.delete,
+                        // disable delete when selected user is protected
+                        onTap: (_selectedUserDocId != null &&
+                                (_selectedUserName?.toLowerCase() !=
+                                    _protectedUser))
+                            ? _deleteUser
+                            : null,
+                      ),
                     ),
                   ],
                 ),
@@ -2040,74 +2522,7 @@ class _StaffScreenState extends State<StaffScreen> {
                     ),
                     const SizedBox(width: 24),
                     Expanded(
-                      child: _HoverPieCard(
-                        title: 'Toppings Used',
-                        // dynamically build pie from current top 5 toppings
-                        pie: Builder(builder: (context) {
-                          final dataTotals = _toppingsTotals.isNotEmpty
-                              ? _toppingsTotals
-                              : Map.fromEntries(_toppingSpots.entries.map((e) =>
-                                  MapEntry(e.key, e.value.fold<double>(0.0, (s, sp) => s + sp.y))));
-
-                          final toppingsForPie = _topToppings.isNotEmpty
-                              ? _topToppings
-                              : dataTotals.keys.toList();
-
-                          // prepare pairs and compute total
-                          final pairs = <MapEntry<String, double>>[];
-                          for (int i = 0; i < toppingsForPie.length && i < 5; i++) {
-                            final name = toppingsForPie[i];
-                            final val = (dataTotals[name] ?? 0.0).clamp(0.0, double.infinity);
-                            pairs.add(MapEntry(name, val));
-                          }
-                          final total = pairs.fold<double>(0.0, (s, e) => s + e.value);
-
-                          final sections = <PieChartSectionData>[];
-                          for (int i = 0; i < pairs.length; i++) {
-                            final name = pairs[i].key;
-                            final value = pairs[i].value;
-                            final color = _toppingColors[i % _toppingColors.length];
-                            final percent = total > 0 ? value / total * 100.0 : 0.0;
-                            final title = percent >= 1.0 ? '${percent.round()}%' : ''; // avoid clutter for <1%
-                            sections.add(PieChartSectionData(
-                              color: color,
-                              value: value > 0 ? value : 0.0001,
-                              title: title,
-                              radius: 44,
-                              titleStyle: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
-                            ));
-                          }
-
-                          return PieChart(
-                            PieChartData(
-                              sections: sections,
-                              centerSpaceRadius: 18,
-                              sectionsSpace: 2,
-                              borderData: FlBorderData(show: false),
-                            ),
-                          );
-                        }),
-                        onDoubleTap: _showToppingsDetailsScreen,
-                        info: (() {
-                          // pick the favorite topping (highest total)
-                          if (_toppingsTotals.isEmpty && _toppingSpots.isNotEmpty) {
-                            // fallback compute totals from spots
-                            final fallback = <String, double>{};
-                            _toppingSpots.forEach((k, v) {
-                              fallback[k] = v.fold<double>(0.0, (s, sp) => s + sp.y);
-                            });
-                            if (fallback.isNotEmpty) {
-                              final best = fallback.entries.reduce((a, b) => a.value >= b.value ? a : b);
-                              return 'Customer\'s Favorite Topping: ${best.key} (${best.value.toInt()})';
-                            }
-                            return 'Customer\'s Favorite Topping: -';
-                          } else if (_toppingsTotals.isNotEmpty) {
-                            final best = _toppingsTotals.entries.reduce((a, b) => a.value >= b.value ? a : b);
-                            return 'Customer\'s Favorite Topping: ${best.key} (${best.value.toInt()})';
-                          }
-                          return 'Customer\'s Favorite Topping: -';
-                        })(),
-                      ),
+                      child: _buildToppingsUsedPieLive(),
                     ),
                   ],
                 ),
@@ -2128,7 +2543,9 @@ class _StaffScreenState extends State<StaffScreen> {
                 ),
                 const SizedBox(height: 16),
                 AnimatedHoverButton(
-                    label: 'About', icon: Icons.info_outline, onTap: () {}),
+                    label: 'About',
+                    icon: Icons.info_outline,
+                    onTap: _showAboutScreen),
               ],
             ),
           ),
@@ -2138,88 +2555,189 @@ class _StaffScreenState extends State<StaffScreen> {
   }
 
   Widget _buildTodaySalesPieLive() {
-  final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-  return StreamBuilder<QuerySnapshot>(
-    stream: FirebaseFirestore.instance
-        .collection('orders')
-        .where('date', isGreaterThanOrEqualTo: todayStr)
-        .snapshots(),
-    builder: (context, orderSnapshot) {
-      if (!orderSnapshot.hasData) {
-        return const Center(child: CircularProgressIndicator());
-      }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('date', isGreaterThanOrEqualTo: todayStr)
+          .snapshots(),
+      builder: (context, orderSnapshot) {
+        if (!orderSnapshot.hasData) {
+          return _shimmerPieCard();
+        }
 
-      final computeFuture = _computeSalesFromDocs(orderSnapshot.data!.docs);
+        final computeFuture = _computeSalesFromDocs(orderSnapshot.data!.docs);
 
-      return FutureBuilder<double>(
-        future: computeFuture,
-        builder: (context, salesSnapshot) {
-          if (!salesSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final sales = salesSnapshot.data ?? 0.0;
+        return FutureBuilder<double>(
+          future: computeFuture,
+          builder: (context, salesSnapshot) {
+            if (!salesSnapshot.hasData) {
+              return _shimmerPieCard();
+            }
+            final sales = salesSnapshot.data ?? 0.0;
 
-          return StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('settings')
-                .doc('targetSales')
-                .collection('periods')
-                .doc(todayStr)
-                .snapshots(),
-            builder: (context, targetSnapshot) {
-              double target = 0.0;
-              if (targetSnapshot.hasData &&
-                  targetSnapshot.data!.exists &&
-                  targetSnapshot.data!.data() != null) {
-                final data = targetSnapshot.data!.data() as Map<String, dynamic>;
-                target = (data['value'] as num?)?.toDouble() ?? 0.0;
-              }
-              final achieved = target > 0 ? sales.clamp(0, target) : 0.0;
-              final remaining =
-                  target > 0 ? (target - achieved).clamp(0, target) : 0.0;
-              final percent =
-                  target > 0 ? (achieved / target * 100).clamp(0, 100) : 0.0;
+            return StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('settings')
+                  .doc('targetSales')
+                  .collection('periods')
+                  .doc(todayStr)
+                  .snapshots(),
+              builder: (context, targetSnapshot) {
+                // Prefer an explicit period document value; otherwise fall back to the cached defaultDaily value
+                double target = 0.0;
+                if (targetSnapshot.hasData &&
+                    targetSnapshot.data!.exists &&
+                    targetSnapshot.data!.data() != null) {
+                  final data = targetSnapshot.data!.data() as Map<String, dynamic>;
+                  target = (data['value'] as num?)?.toDouble() ?? (_defaultDailyTarget ?? 0.0);
+                } else {
+                  // No per-day doc: use the in-memory default if available
+                  target = _defaultDailyTarget ?? 0.0;
+                }
+                final achieved = target > 0 ? sales.clamp(0, target) : 0.0;
+                final remaining =
+                    target > 0 ? (target - achieved).clamp(0, target) : 0.0;
+                final percent =
+                    target > 0 ? (achieved / target * 100).clamp(0, 100) : 0.0;
 
-              return _HoverPieCard(
-                title: 'Total Sales',
-                pie: PieChart(
-                  PieChartData(
-                    sections: [
-                      PieChartSectionData(
-                        color: AppColors.pink500,
-                        value: achieved.toDouble(),
-                        title: '${percent.toStringAsFixed(0)}%',
-                        radius: 48,
-                        titleStyle: const TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold),
-                      ),
-                      PieChartSectionData(
-                        color: AppColors.salmon400,
-                        value: remaining.toDouble(),
-                        title: '',
-                        radius: 48,
-                      ),
-                    ],
-                    centerSpaceRadius: 24,
-                    sectionsSpace: 2,
-                    borderData: FlBorderData(show: false),
+                final List<PieChartSectionData> sections;
+                String info;
+                if (target <= 0 && sales <= 0) {
+                  sections = [
+                    PieChartSectionData(
+                      color: Colors.grey.shade300,
+                      value: 1.0,
+                      title: '',
+                      radius: 48,
+                    ),
+                  ];
+                  info = 'No sales yet for today';
+                } else {
+                  sections = [
+                    PieChartSectionData(
+                      color: AppColors.pink500,
+                      value: achieved.toDouble(),
+                      title: '${percent.toStringAsFixed(0)}%',
+                      radius: 48,
+                      titleStyle: const TextStyle(
+                          fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                    PieChartSectionData(
+                      color: AppColors.salmon400,
+                      value: remaining.toDouble(),
+                      title: '',
+                      radius: 48,
+                    ),
+                  ];
+                  info = 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
+                      'Target: ₱${target.toStringAsFixed(2)}\n'
+                      'Achieved: ${percent.toStringAsFixed(1)}%';
+                }
+
+                return _HoverPieCard(
+                  title: 'Total Sales',
+                  pie: PieChart(
+                    PieChartData(
+                      sections: sections,
+                      centerSpaceRadius: 24,
+                      sectionsSpace: 2,
+                      borderData: FlBorderData(show: false),
+                    ),
                   ),
+                  onDoubleTap: _showSalesDetailsScreen,
+                  info: info,
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildToppingsUsedPieLive() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .orderBy('date')
+          .snapshots(),
+      builder: (context, orderSnapshot) {
+        if (!orderSnapshot.hasData) {
+          return _shimmerPieCard();
+        }
+
+        final computeFuture =
+            _computeToppingsTotalsFromDocs(orderSnapshot.data!.docs);
+
+        return FutureBuilder<Map<String, dynamic>>(
+          future: computeFuture,
+          builder: (context, toppingsSnapshot) {
+            if (!toppingsSnapshot.hasData) {
+              return _shimmerPieCard();
+            }
+
+            final data = toppingsSnapshot.data!;
+            final totals = data['totals'] as Map<String, double>;
+            final topList = data['top'] as List<String>;
+
+            // Build pie sections for top 5 toppings
+            final sections = <PieChartSectionData>[];
+            final toppingsForPie = topList.take(5).toList();
+
+            double total = 0.0;
+            for (var name in toppingsForPie) {
+              total += totals[name] ?? 0.0;
+            }
+
+            for (int i = 0; i < toppingsForPie.length; i++) {
+              final name = toppingsForPie[i];
+              final value = totals[name] ?? 0.0;
+              final color = _toppingColors[i % _toppingColors.length];
+              final percent = total > 0 ? value / total * 100.0 : 0.0;
+              final title = percent >= 1.0 ? '${percent.round()}%' : '';
+
+              sections.add(PieChartSectionData(
+                color: color,
+                value: value > 0 ? value : 0.0001,
+                title: title,
+                radius: 44,
+                titleStyle: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
-                onDoubleTap: _showSalesDetailsScreen,
-                info: 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
-                    'Target: ₱${target.toStringAsFixed(2)}\n'
-                    'Achieved: ${percent.toStringAsFixed(1)}%',
-              );
-            },
-          );
-        },
-      );
-    },
-  );
-}
+              ));
+            }
+
+            // Determine favorite topping
+            String info = 'Customer\'s Favorite Topping: -';
+            if (totals.isNotEmpty) {
+              final best =
+                  totals.entries.reduce((a, b) => a.value >= b.value ? a : b);
+              info =
+                  'Customer\'s Favorite Topping: ${best.key} (${best.value.toInt()})';
+            }
+
+            return _HoverPieCard(
+              title: 'Toppings Used',
+              pie: PieChart(
+                PieChartData(
+                  sections: sections,
+                  centerSpaceRadius: 18,
+                  sectionsSpace: 2,
+                  borderData: FlBorderData(show: false),
+                ),
+              ),
+              onDoubleTap: _showToppingsDetailsScreen,
+              info: info,
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _HoverPieCard extends StatefulWidget {
@@ -2245,22 +2763,22 @@ class _HoverPieCardState extends State<_HoverPieCard> {
   void _showInfoDialog() {
     if (widget.info != null) {
       showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(widget.title),
-          content: SingleChildScrollView(
-            child: Text(
-              widget.info!,
-              softWrap: true,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        ));
+          context: context,
+          builder: (context) => AlertDialog(
+                title: Text(widget.title),
+                content: SingleChildScrollView(
+                  child: Text(
+                    widget.info!,
+                    softWrap: true,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                ],
+              ));
     }
   }
 
@@ -2320,7 +2838,10 @@ class _HoverPieCardState extends State<_HoverPieCard> {
               onExit: (_) => setState(() => _hovering = false),
               child: GestureDetector(
                 onDoubleTap: widget.onDoubleTap,
-                onLongPress: _showInfoDialog, // Show info on long press
+                onLongPressStart: (_) => setState(() => _hovering = true),
+                onLongPressEnd: (_) => setState(() => _hovering = false),
+                onLongPress:
+                    _showInfoDialog, // Show info on long press (dialog)
                 child: Tooltip(
                   message: widget.info ?? '',
                   child: Card(

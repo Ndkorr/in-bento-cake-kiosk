@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InBento Payment</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 400px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        #status {
+            color: #666;
+            margin: 20px 0;
+            font-size: 18px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: scale(1.05);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .loading {
+            color: #667eea;
+        }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🍰 InBento Payment</h1>
+        <p id="orderInfo"></p>
+        <p id="status" class="loading">Loading payment details...</p>
+        <button id="confirmBtn" style="display:none;">Confirm Payment</button>
+    </div>
+
+    <script>
+        // TODO: Replace with your actual Firebase config from Firebase Console
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const orderNumber = urlParams.get('order');
+
+        const statusEl = document.getElementById('status');
+        const confirmBtn = document.getElementById('confirmBtn');
+        const orderInfoEl = document.getElementById('orderInfo');
+
+        if (!token || !orderNumber) {
+            statusEl.textContent = 'Invalid payment link';
+            statusEl.style.color = 'red';
+        } else {
+            orderInfoEl.textContent = `Order #${orderNumber}`;
+
+            // Check if payment exists
+            db.collection('payments').doc(token).get().then(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data.paid) {
+                        statusEl.textContent = 'Payment already completed!';
+                        statusEl.className = 'success';
+                    } else {
+                        statusEl.textContent = 'Ready to confirm payment';
+                        confirmBtn.style.display = 'block';
+                    }
+                } else {
+                    statusEl.textContent = 'Payment session expired or invalid';
+                    statusEl.style.color = 'red';
+                }
+            }).catch(err => {
+                statusEl.textContent = 'Error loading payment: ' + err.message;
+                statusEl.style.color = 'red';
+            });
+        }
+
+        confirmBtn.onclick = async () => {
+            confirmBtn.disabled = true;
+            statusEl.textContent = 'Processing payment...';
+            statusEl.className = 'loading';
+
+            try {
+                await db.collection('payments').doc(token).update({
+                    paid: true,
+                    paidAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                statusEl.textContent = '✓ Payment confirmed! You can close this page.';
+                statusEl.className = 'success';
+                confirmBtn.style.display = 'none';
+            } catch (error) {
+                statusEl.textContent = 'Error: ' + error.message;
+                statusEl.style.color = 'red';
+                confirmBtn.disabled = false;
+            }
+        };
+    </script>
+</body>
+
+</html>

@@ -8,6 +8,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'loading_screen.dart';
+import 'dart:convert';
+import 'dart:math';
+import 'dart:async';
+import 'package:qr_flutter/qr_flutter.dart' as qr;
 
 class PaymentMethodScreen extends StatelessWidget {
   final List<Map<String, dynamic>> cartItems;
@@ -15,6 +19,13 @@ class PaymentMethodScreen extends StatelessWidget {
 
   const PaymentMethodScreen(
       {super.key, required this.cartItems, required this.orderType});
+
+  String _generateToken([int length = 12]) {
+    final rnd = Random();
+    final bytes = List<int>.generate(length, (_) => rnd.nextInt(256));
+    // url-safe base64, trimmed padding
+    return base64Url.encode(bytes).replaceAll('=', '');
+  }
 
   double _calculateTotal(List<Map<String, dynamic>> cartItems) {
     double total = 0;
@@ -313,21 +324,18 @@ class PaymentMethodScreen extends StatelessWidget {
                   icon: Icons.qr_code_2,
                   label: 'Scan QR',
                   onTap: () async {
-                    int? nextOrderNumber;
-                    final saveFuture = _saveOrderToFirestore(cartItems, orderType)
-                        .then((val) => nextOrderNumber = val);
+                    // generate a token without saving order yet
+                    final token = _generateToken(10);
 
-                    showDialog(
-                      context: context,
-                      barrierDismissible: false,
-                      barrierColor: Colors.transparent,
-                      builder: (context) => LoadingOverlay(
-                        title: 'Preparing your receipt',
-                        waitFor: saveFuture,
-                        nextScreenBuilder: (_) => ReceiptScreen(
+                    // push QR payment screen (don't save order yet)
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => QrPaymentScreen(
                           cartItems: cartItems,
                           orderType: orderType,
-                          orderNumber: nextOrderNumber ?? 0,
+                          token: token,
+                          saveOrderCallback:
+                              _saveOrderToFirestore, // pass the save function
                         ),
                       ),
                     );
@@ -386,3 +394,328 @@ class _PaymentOption extends StatelessWidget {
     );
   }
 }
+
+class QrPaymentScreen extends StatefulWidget {
+  final List<Map<String, dynamic>> cartItems;
+  final String orderType;
+  final String token;
+  final Future<int> Function(List<Map<String, dynamic>>, String) saveOrderCallback;
+
+  const QrPaymentScreen({
+    super.key,
+    required this.cartItems,
+    required this.orderType,
+    required this.token,
+    required this.saveOrderCallback,
+  });
+
+  @override
+  State<QrPaymentScreen> createState() => _QrPaymentScreenState();
+}
+
+class _QrPaymentScreenState extends State<QrPaymentScreen> {
+  bool _isPaid = false;
+  bool _isSavingOrder = false;
+  int? _orderNumber;
+  StreamSubscription<DocumentSnapshot>? _paymentListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _createPaymentDoc();
+    _listenForPayment();
+  }
+
+  Future<void> _createPaymentDoc() async {
+    // Create a payment document that the phone app will update
+    await FirebaseFirestore.instance
+        .collection('payments')
+        .doc(widget.token)
+        .set({
+      'token': widget.token,
+      'paid': false,
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt':
+          DateTime.now().add(const Duration(minutes: 5)).toIso8601String(),
+    });
+  }
+
+  void _listenForPayment() {
+    // Listen for changes to the payment document
+    _paymentListener = FirebaseFirestore.instance
+        .collection('payments')
+        .doc(widget.token)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.exists && mounted) {
+        final data = snapshot.data();
+        if (data != null && data['paid'] == true && !_isPaid) {
+          setState(() => _isPaid = true);
+          _confirmPayment();
+        }
+      }
+    });
+  }
+
+  Future<void> _confirmPayment() async {
+  if (_isSavingOrder) return;
+  
+  setState(() => _isSavingOrder = true);
+
+  try {
+    // NOW save the order (only when payment is confirmed)
+    final orderNumber = await widget.saveOrderCallback(widget.cartItems, widget.orderType);
+    
+    setState(() => _orderNumber = orderNumber);
+
+    // Update payment doc with order number before cleaning up
+    await FirebaseFirestore.instance
+        .collection('payments')
+        .doc(widget.token)
+        .update({
+      'orderNumber': orderNumber,
+    });
+
+    // Small delay to let the phone read the order number
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Clean up the payment doc
+    FirebaseFirestore.instance
+        .collection('payments')
+        .doc(widget.token)
+        .delete()
+        .catchError((_) {});
+
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ReceiptScreen(
+            cartItems: widget.cartItems,
+            orderType: widget.orderType,
+            orderNumber: orderNumber,
+          ),
+        ),
+      );
+    }
+  } catch (e) {
+    debugPrint('Error saving order: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving order: $e')),
+      );
+    }
+  }
+}
+
+  @override
+  void dispose() {
+    _paymentListener?.cancel();
+    // Clean up payment doc if user backs out without paying
+    if (!_isPaid) {
+      FirebaseFirestore.instance
+          .collection('payments')
+          .doc(widget.token)
+          .delete()
+          .catchError((_) {});
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final qrData =
+        'https://in-bento-kiosk.web.app/?token=${widget.token}&qr=${DateTime.now().millisecondsSinceEpoch}';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Scan to pay',
+          style: GoogleFonts.ubuntu(
+            fontWeight: FontWeight.w900,
+            color: AppColors.pink700,
+          ),
+        ),
+        backgroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: AppColors.pink700),
+        elevation: 0,
+      ),
+      body: Stack(
+        children: [
+          const TiledIcons(),
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: qr.QrImageView(
+                      data: qrData,
+                      version: qr.QrVersions.auto,
+                      size: 280,
+                      gapless: false,
+                      eyeStyle: const qr.QrEyeStyle(
+                        eyeShape: qr.QrEyeShape.square,
+                        color: Colors.black,
+                      ),
+                      dataModuleStyle: const qr.QrDataModuleStyle(
+                        dataModuleShape: qr.QrDataModuleShape.square,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (_orderNumber != null)
+                    Text(
+                      'Order #$_orderNumber',
+                      style: GoogleFonts.ubuntu(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.pink700,
+                      ),
+                    )
+                  else
+                    Text(
+                      'Awaiting Payment',
+                      style: GoogleFonts.ubuntu(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.pink700,
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.phone_android,
+                          size: 48,
+                          color: AppColors.pink700,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Scan this QR code with your phone',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.ubuntu(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Complete the payment on your device',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.ubuntu(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (_isSavingOrder)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.pink700,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Processing order...',
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (_isPaid)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Payment confirmed!',
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.pink700,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Waiting for payment...',
+                          style: GoogleFonts.ubuntu(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
