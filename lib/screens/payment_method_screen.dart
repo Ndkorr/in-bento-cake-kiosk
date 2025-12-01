@@ -458,54 +458,89 @@ class _QrPaymentScreenState extends State<QrPaymentScreen> {
   }
 
   Future<void> _confirmPayment() async {
-  if (_isSavingOrder) return;
-  
-  setState(() => _isSavingOrder = true);
-
-  try {
-    // NOW save the order (only when payment is confirmed)
-    final orderNumber = await widget.saveOrderCallback(widget.cartItems, widget.orderType);
+    if (_isSavingOrder) return;
     
-    setState(() => _orderNumber = orderNumber);
+    setState(() => _isSavingOrder = true);
 
-    // Update payment doc with order number before cleaning up
-    await FirebaseFirestore.instance
-        .collection('payments')
-        .doc(widget.token)
-        .update({
-      'orderNumber': orderNumber,
-    });
+    try {
+      // Create a completer to track when order is saved
+      final completer = Completer<int>();
+      
+      // Save the order (only when payment is confirmed)
+      final saveFuture = widget.saveOrderCallback(widget.cartItems, widget.orderType)
+          .then((orderNumber) {
+        completer.complete(orderNumber);
+        return orderNumber;
+      });
 
-    // Small delay to let the phone read the order number
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // Clean up the payment doc
-    FirebaseFirestore.instance
-        .collection('payments')
-        .doc(widget.token)
-        .delete()
-        .catchError((_) {});
-
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => ReceiptScreen(
-            cartItems: widget.cartItems,
-            orderType: widget.orderType,
-            orderNumber: orderNumber,
+      // Show loading overlay while saving
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          barrierColor: Colors.transparent,
+          builder: (context) => LoadingOverlay(
+            title: 'Preparing your receipt',
+            waitFor: saveFuture.then((_) {}), // Convert to Future<void>
+            nextScreenBuilder: (_) => ReceiptScreen(
+              cartItems: widget.cartItems,
+              orderType: widget.orderType,
+              orderNumber: 0, // Will be set after completer completes
+            ),
           ),
-        ),
-      );
-    }
-  } catch (e) {
-    debugPrint('Error saving order: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving order: $e')),
-      );
+        );
+      }
+
+      // Wait for order to be saved
+      final orderNumber = await completer.future;
+      
+      setState(() => _orderNumber = orderNumber);
+
+      // Update payment doc with order number
+      await FirebaseFirestore.instance
+          .collection('payments')
+          .doc(widget.token)
+          .update({
+        'orderNumber': orderNumber,
+      });
+
+      // Small delay to let the phone read the order number
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Clean up the payment doc
+      FirebaseFirestore.instance
+          .collection('payments')
+          .doc(widget.token)
+          .delete()
+          .catchError((_) {});
+
+      // Update the receipt screen with the correct order number
+      if (mounted) {
+        // Pop the loading overlay
+        Navigator.of(context).pop();
+        // Pop the QR screen
+        Navigator.of(context).pop();
+        // Push the receipt with correct order number
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ReceiptScreen(
+              cartItems: widget.cartItems,
+              orderType: widget.orderType,
+              orderNumber: orderNumber,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving order: $e');
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading overlay
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving order: $e')),
+        );
+      }
     }
   }
-}
 
   @override
   void dispose() {
@@ -718,4 +753,3 @@ class _QrPaymentScreenState extends State<QrPaymentScreen> {
     );
   }
 }
-

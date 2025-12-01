@@ -1867,9 +1867,40 @@ class _StaffScreenState extends State<StaffScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text('Favorite toppings placed',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                             fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+                    // Date display similar to sales
+                    if (_selectedToppingIndex != null &&
+                        _toppingsLabels.isNotEmpty &&
+                        _selectedToppingIndex! < _toppingsLabels.length)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Text(
+                          'Favorite toppings on: ${_toppingsLabels[_selectedToppingIndex!]}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.teal,
+                          ),
+                        ),
+                      )
+                    else if (_toppingsLabels.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Text(
+                          'Favorite toppings on: ${_toppingsLabels.first}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.teal,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 4),
                     // period filter for toppings chart
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -2555,107 +2586,122 @@ class _StaffScreenState extends State<StaffScreen> {
   }
 
   Widget _buildTodaySalesPieLive() {
-    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('orders')
-          .where('date', isGreaterThanOrEqualTo: todayStr)
-          .snapshots(),
-      builder: (context, orderSnapshot) {
-        if (!orderSnapshot.hasData) {
-          return _shimmerPieCard();
-        }
+  return StreamBuilder<QuerySnapshot>(
+    stream: FirebaseFirestore.instance
+        .collection('orders')
+        .where('date', isGreaterThanOrEqualTo: todayStr)
+        .snapshots(),
+    builder: (context, orderSnapshot) {
+      if (!orderSnapshot.hasData) {
+        return _shimmerPieCard();
+      }
 
-        final computeFuture = _computeSalesFromDocs(orderSnapshot.data!.docs);
+      final computeFuture = _computeSalesFromDocs(orderSnapshot.data!.docs);
 
-        return FutureBuilder<double>(
-          future: computeFuture,
-          builder: (context, salesSnapshot) {
-            if (!salesSnapshot.hasData) {
-              return _shimmerPieCard();
-            }
-            final sales = salesSnapshot.data ?? 0.0;
+      return FutureBuilder<double>(
+        future: computeFuture,
+        builder: (context, salesSnapshot) {
+          if (!salesSnapshot.hasData) {
+            return _shimmerPieCard();
+          }
+          final sales = salesSnapshot.data ?? 0.0;
 
-            return StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('settings')
-                  .doc('targetSales')
-                  .collection('periods')
-                  .doc(todayStr)
-                  .snapshots(),
-              builder: (context, targetSnapshot) {
-                // Prefer an explicit period document value; otherwise fall back to the cached defaultDaily value
-                double target = 0.0;
-                if (targetSnapshot.hasData &&
-                    targetSnapshot.data!.exists &&
-                    targetSnapshot.data!.data() != null) {
-                  final data = targetSnapshot.data!.data() as Map<String, dynamic>;
-                  target = (data['value'] as num?)?.toDouble() ?? (_defaultDailyTarget ?? 0.0);
-                } else {
-                  // No per-day doc: use the in-memory default if available
-                  target = _defaultDailyTarget ?? 0.0;
-                }
-                final achieved = target > 0 ? sales.clamp(0, target) : 0.0;
-                final remaining =
-                    target > 0 ? (target - achieved).clamp(0, target) : 0.0;
-                final percent =
-                    target > 0 ? (achieved / target * 100).clamp(0, 100) : 0.0;
+          return StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('settings')
+                .doc('targetSales')
+                .collection('periods')
+                .doc(todayStr)
+                .snapshots(),
+            builder: (context, targetSnapshot) {
+              // Prefer an explicit period document value; otherwise fall back to the cached defaultDaily value
+              double target = 0.0;
+              if (targetSnapshot.hasData &&
+                  targetSnapshot.data!.exists &&
+                  targetSnapshot.data!.data() != null) {
+                final data = targetSnapshot.data!.data() as Map<String, dynamic>;
+                target = (data['value'] as num?)?.toDouble() ?? (_defaultDailyTarget ?? 0.0);
+              } else {
+                // No per-day doc: use the in-memory default if available
+                target = _defaultDailyTarget ?? 0.0;
+              }
+              
+              // Don't clamp values - allow sales to exceed target
+              final achieved = target > 0 ? sales : 0.0;
+              final remaining = target > 0 ? (target - sales).clamp(0, double.infinity) : 0.0;
+              final percent = target > 0 ? (sales / target * 100) : 0.0;
 
-                final List<PieChartSectionData> sections;
-                String info;
-                if (target <= 0 && sales <= 0) {
-                  sections = [
-                    PieChartSectionData(
-                      color: Colors.grey.shade300,
-                      value: 1.0,
-                      title: '',
-                      radius: 48,
-                    ),
-                  ];
-                  info = 'No sales yet for today';
-                } else {
-                  sections = [
-                    PieChartSectionData(
-                      color: AppColors.pink500,
-                      value: achieved.toDouble(),
-                      title: '${percent.toStringAsFixed(0)}%',
-                      radius: 48,
-                      titleStyle: const TextStyle(
-                          fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                    PieChartSectionData(
-                      color: AppColors.salmon400,
-                      value: remaining.toDouble(),
-                      title: '',
-                      radius: 48,
-                    ),
-                  ];
-                  info = 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
-                      'Target: ₱${target.toStringAsFixed(2)}\n'
-                      'Achieved: ${percent.toStringAsFixed(1)}%';
-                }
-
-                return _HoverPieCard(
-                  title: 'Total Sales',
-                  pie: PieChart(
-                    PieChartData(
-                      sections: sections,
-                      centerSpaceRadius: 24,
-                      sectionsSpace: 2,
-                      borderData: FlBorderData(show: false),
-                    ),
+              final List<PieChartSectionData> sections;
+              String info;
+              if (target <= 0 && sales <= 0) {
+                sections = [
+                  PieChartSectionData(
+                    color: Colors.grey.shade300,
+                    value: 1.0,
+                    title: '',
+                    radius: 48,
                   ),
-                  onDoubleTap: _showSalesDetailsScreen,
-                  info: info,
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
+                ];
+                info = 'No sales yet for today';
+              } else if (sales >= target && target > 0) {
+                // Sales exceeded target - show 100% (or more) in achieved section
+                sections = [
+                  PieChartSectionData(
+                    color: AppColors.pink500,
+                    value: 1.0,
+                    title: '${percent.toStringAsFixed(0)}%',
+                    radius: 48,
+                    titleStyle: const TextStyle(
+                        fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ];
+                info = 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
+                    'Target: ₱${target.toStringAsFixed(2)}\n'
+                    'Achieved: ${percent.toStringAsFixed(1)}%';
+              } else {
+                sections = [
+                  PieChartSectionData(
+                    color: AppColors.pink500,
+                    value: achieved.toDouble(),
+                    title: '${percent.toStringAsFixed(0)}%',
+                    radius: 48,
+                    titleStyle: const TextStyle(
+                        fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  PieChartSectionData(
+                    color: AppColors.salmon400,
+                    value: remaining.toDouble(),
+                    title: '',
+                    radius: 48,
+                  ),
+                ];
+                info = 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
+                    'Target: ₱${target.toStringAsFixed(2)}\n'
+                    'Achieved: ${percent.toStringAsFixed(1)}%';
+              }
+
+              return _HoverPieCard(
+                title: 'Total Sales',
+                pie: PieChart(
+                  PieChartData(
+                    sections: sections,
+                    centerSpaceRadius: 24,
+                    sectionsSpace: 2,
+                    borderData: FlBorderData(show: false),
+                  ),
+                ),
+                onDoubleTap: _showSalesDetailsScreen,
+                info: info,
+              );
+            },
+          );
+        },
+      );
+    },
+  );
+}
 
   Widget _buildToppingsUsedPieLive() {
     return StreamBuilder<QuerySnapshot>(
@@ -2839,9 +2885,17 @@ class _HoverPieCardState extends State<_HoverPieCard> {
               child: GestureDetector(
                 onDoubleTap: widget.onDoubleTap,
                 onLongPressStart: (_) => setState(() => _hovering = true),
-                onLongPressEnd: (_) => setState(() => _hovering = false),
-                onLongPress:
-                    _showInfoDialog, // Show info on long press (dialog)
+                onLongPressEnd: (_) {
+                  // Delay hiding the hover state to allow dialog to show
+                  Future.delayed(const Duration(milliseconds: 100), () {
+                    if (mounted) setState(() => _hovering = false);
+                  });
+                },
+                onLongPress: () {
+                  // Show dialog after a brief moment to ensure hover state is visible
+                  Future.delayed(
+                      const Duration(milliseconds: 50), _showInfoDialog);
+                }, // Show info on long press (dialog)
                 child: Tooltip(
                   message: widget.info ?? '',
                   child: Card(
