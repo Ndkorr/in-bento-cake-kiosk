@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'dart:typed_data';
 import '../theme/app_colors.dart';
 // Use CakeCard from menu_screen
 import 'menu_screen.dart';
@@ -52,6 +53,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
   bool _fillingsCompleted = false;
   bool _frostingCompleted = false;
   bool _toppingsCompleted = false;
+  bool _dedicationCompleted = false;
 
   bool _showFlavorAfterShape = false;
 
@@ -59,6 +61,9 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
 
   String? _dedication;
   bool _showDedicationOverlay = false;
+
+  bool _dedicationIsDrawing = false;
+Uint8List? _dedicationDrawingImage;
 
   @override
   void initState() {
@@ -116,6 +121,7 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
       _fillingsCompleted = false;
       _frostingCompleted = false;
       _toppingsCompleted = false;
+      _dedicationCompleted = false;
     });
   }
 
@@ -220,18 +226,24 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                 selectedFrosting: _selectedFrosting,
                 selectedToppings:
                     _selectedToppings.isEmpty ? null : _selectedToppings,
+                enableDrawing: _dedicationIsDrawing,
               ),
             ),
           );
 
           // If cart item was returned, add it to cart
           if (cartItem != null && mounted) {
-            cartItem['dedication'] = _dedication;
+            if (_dedicationIsDrawing) {
+              cartItem['dedicationMode'] = 'drawing';
+              cartItem['dedication'] = 'Customized';
+            } else {
+              cartItem['dedicationMode'] = 'text';
+              cartItem['dedication'] = _dedication;
+            }
             cartItem['cakeName'] = widget.cake['name'];
             cartItem['cakeImage'] = widget.cake['image'];
             cartItem['cakePrice'] = widget.cake['price'];
-            cartItem['quantity'] = 1; // Initialize quantity
-
+            cartItem['quantity'] = 1;
             cartItem['shape'] = 'round';
 
             setState(() {
@@ -503,12 +515,15 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         },
         {
           'title': 'DEDICATION',
-          'subtitle': _dedication ?? 'PERSONALIZED',
+          'subtitle': _dedicationIsDrawing
+              ? 'Customized (Drawing)'
+              : (_dedication != null && _dedication!.isNotEmpty
+                  ? _dedication!
+                  : (_dedicationCompleted ? 'None' : 'PERSONALIZED')),
           'clickable': 'true',
           'type': 'dedication',
-          'completed':
-              (_dedication != null && _dedication!.isNotEmpty).toString(),
-        },
+          'completed': _dedicationCompleted.toString(),
+        }
       ];
     } else if (cakeName == 'Combo C') {
       return [
@@ -546,12 +561,15 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
         },
         {
           'title': 'DEDICATION',
-          'subtitle': _dedication ?? 'PERSONALIZED',
+          'subtitle': _dedicationIsDrawing
+              ? 'Customized (Drawing)'
+              : (_dedication != null && _dedication!.isNotEmpty
+                  ? _dedication!
+                  : (_dedicationCompleted ? 'None' : 'PERSONALIZED')),
           'clickable': 'true',
           'type': 'dedication',
-          'completed':
-              (_dedication != null && _dedication!.isNotEmpty).toString(),
-        },
+          'completed': _dedicationCompleted.toString(),
+        }
       ];
     } else if (cakeName == 'Combo B') {
       return [
@@ -588,13 +606,16 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
           'completed': _toppingsCompleted.toString()
         },
         {
-          'title': 'DEDICATION',
-          'subtitle': _dedication ?? 'PERSONALIZED',
-          'clickable': 'true',
-          'type': 'dedication',
-          'completed':
-              (_dedication != null && _dedication!.isNotEmpty).toString(),
-        },
+  'title': 'DEDICATION',
+  'subtitle': _dedicationIsDrawing 
+      ? 'Customized (Drawing)' 
+      : (_dedication != null && _dedication!.isNotEmpty 
+          ? _dedication! 
+          : (_dedicationCompleted ? 'None' : 'PERSONALIZED')),
+  'clickable': 'true',
+  'type': 'dedication',
+  'completed': _dedicationCompleted.toString(),
+}
       ];
     }
 
@@ -765,11 +786,20 @@ class _CakeDetailsScreenState extends State<CakeDetailsScreen>
                 initialDedication: _dedication,
                 onSave: (value) {
                   setState(() {
-                    _dedication = value;
+                    if (value == '__DRAW__') {
+                      _dedicationIsDrawing = true;
+                      _dedication = null;
+                      _dedicationCompleted = true;
+                    } else {
+                      _dedicationIsDrawing = false;
+                      _dedication = value;
+                      _dedicationCompleted = true;
+                    }
                   });
                   _hideDedicationOverlayScreen();
                 },
                 onBack: _hideDedicationOverlayScreen,
+                onShowError: _showError,
               ),
             ),
           // Flavor selection overlay (NEW - for Classic Vanilla)
@@ -3336,22 +3366,27 @@ class _CartSuccessPopup extends StatelessWidget {
   }
 }
 
+// Update the _DedicationOverlay widget to show two options
+
 class _DedicationOverlay extends StatefulWidget {
   const _DedicationOverlay({
     required this.initialDedication,
     required this.onSave,
     required this.onBack,
+    required this.onShowError,
   });
 
   final String? initialDedication;
   final ValueChanged<String> onSave;
   final VoidCallback onBack;
+  final ValueChanged<String> onShowError;
 
   @override
   State<_DedicationOverlay> createState() => _DedicationOverlayState();
 }
 
 class _DedicationOverlayState extends State<_DedicationOverlay> {
+  bool _showTextEntry = false;
   late TextEditingController _controller;
 
   @override
@@ -3368,6 +3403,166 @@ class _DedicationOverlayState extends State<_DedicationOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showTextEntry) {
+      // Show text entry screen
+      return Container(
+        color: AppColors.cream200,
+        child: Stack(
+          children: [
+            const Positioned.fill(child: _TiledIcons()),
+            SafeArea(
+              child: Center(
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.all(42),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(25),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Header with back button
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_rounded,
+                                  color: AppColors.pink700, size: 28),
+                              onPressed: () {
+                                setState(() {
+                                  _showTextEntry = false;
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Enter Dedication',
+                                    style: GoogleFonts.ubuntu(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w900,
+                                      fontStyle: FontStyle.italic,
+                                      color: AppColors.pink700,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Add a personal message to your cake',
+                                    style: GoogleFonts.ubuntu(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.pink500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Content
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _controller,
+                                maxLength: 50,
+                                maxLines: 3,
+                                decoration: InputDecoration(
+                                  hintText: 'Happy Birthday, John! (or type "none" for no dedication)',
+                                  hintStyle: GoogleFonts.ubuntu(
+                                    fontSize: 14,
+                                    color: AppColors.pink700.withOpacity(0.5),
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.pink700, width: 2),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.pink700, width: 2),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.pink500, width: 3),
+                                  ),
+                                ),
+                                style: GoogleFonts.ubuntu(
+                                  fontSize: 16,
+                                  color: AppColors.pink700,
+                                ),
+                              ),
+                              const Spacer(),
+                              _MenuActionButton(
+                                onTap: () {
+                                  final text = _controller.text.trim();
+                                  if (text.isEmpty) {
+                                    widget.onShowError('Please enter a dedication message or type "none" if you don\'t want one.');
+                                    return;
+                                  }
+                                  // Check if user typed "none" (case-insensitive)
+                                  if (text.toLowerCase() == 'none') {
+                                    widget.onSave(''); // Save empty string for no dedication
+                                  } else {
+                                    widget.onSave(text);
+                                  }
+                                },
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    AppColors.pink500,
+                                    AppColors.salmon400
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.check,
+                                        color: Colors.white, size: 24),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'SAVE DEDICATION',
+                                      style: GoogleFonts.ubuntu(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show two options screen
     return Container(
       color: AppColors.cream200,
       child: Stack(
@@ -3390,8 +3585,8 @@ class _DedicationOverlayState extends State<_DedicationOverlay> {
                   ],
                 ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Header with back button
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Row(
@@ -3402,51 +3597,61 @@ class _DedicationOverlayState extends State<_DedicationOverlay> {
                             onPressed: widget.onBack,
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            'Enter Dedication',
-                            style: GoogleFonts.ubuntu(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              fontStyle: FontStyle.italic,
-                              color: AppColors.pink700,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Choose Dedication Type',
+                                  style: GoogleFonts.ubuntu(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w900,
+                                    fontStyle: FontStyle.italic,
+                                    color: AppColors.pink700,
+                                  ),
+                                ),
+                                Text(
+                                  'Select how you want to add your message',
+                                  style: GoogleFonts.ubuntu(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.pink500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: TextField(
-                        controller: _controller,
-                        maxLength: 40,
-                        decoration: InputDecoration(
-                          labelText: 'Dedication Message',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: _MenuActionButton(
-                        onTap: () {
-                          widget.onSave(_controller.text.trim());
-                        },
-                        gradient: const LinearGradient(
-                          colors: [AppColors.pink500, AppColors.salmon400],
-                        ),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: Text(
-                            'Save',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.ubuntu(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
+                    // Content
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _DedicationOptionButton(
+                              icon: Icons.edit_outlined,
+                              title: 'ENTER DEDICATION',
+                              subtitle: 'Type your personal message',
+                              onTap: () {
+                                setState(() {
+                                  _showTextEntry = true;
+                                });
+                              },
                             ),
-                          ),
+                            const SizedBox(height: 16),
+                            _DedicationOptionButton(
+                              icon: Icons.draw_outlined,
+                              title: 'LET ME DRAW',
+                              subtitle: 'Draw your own dedication',
+                              onTap: () {
+                                // Mark as drawing mode and close overlay
+                                widget.onSave('__DRAW__');
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -3456,6 +3661,115 @@ class _DedicationOverlayState extends State<_DedicationOverlay> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DedicationOptionButton extends StatefulWidget {
+  const _DedicationOptionButton({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  State<_DedicationOptionButton> createState() =>
+      _DedicationOptionButtonState();
+}
+
+class _DedicationOptionButtonState extends State<_DedicationOptionButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isPressed = true),
+      onExit: (_) => setState(() => _isPressed = false),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (mounted) setState(() => _isPressed = false);
+          });
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: _isPressed
+                ? const LinearGradient(
+                    colors: [Colors.white, Colors.white],
+                  )
+                : const LinearGradient(
+                    colors: [AppColors.pink500, AppColors.salmon400],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isPressed ? AppColors.pink700 : Colors.transparent,
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(40),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                widget.icon,
+                color: _isPressed ? AppColors.pink700 : Colors.white,
+                size: 48,
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: GoogleFonts.ubuntu(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: _isPressed ? AppColors.pink700 : Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.subtitle,
+                      style: GoogleFonts.ubuntu(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: _isPressed
+                            ? AppColors.pink700
+                            : Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: _isPressed ? AppColors.pink700 : Colors.white,
+                size: 32,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

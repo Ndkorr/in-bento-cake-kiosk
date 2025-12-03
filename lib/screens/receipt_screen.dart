@@ -539,11 +539,17 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                                 'Toppings', _formatToppingsSummary(cartItem)),
                             _receiptRow(
                               'Dedication',
-                              cartItem['dedication'] != null &&
-                                      (cartItem['dedication'] as String)
-                                          .isNotEmpty
-                                  ? cartItem['dedication']
-                                  : 'None',
+                              (() {
+                                if (cartItem['dedicationMode'] == 'drawing' ||
+                                    cartItem['dedicationDrawing'] != null) {
+                                  return 'Customized';
+                                }
+                                return cartItem['dedication'] != null &&
+                                        (cartItem['dedication'] as String)
+                                            .isNotEmpty
+                                    ? cartItem['dedication']
+                                    : 'None';
+                              })(),
                             ),
                             _receiptRow('Qty', qty.toString()),
                             _receiptRow(

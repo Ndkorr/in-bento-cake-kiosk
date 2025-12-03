@@ -15,12 +15,18 @@ enum CakeViewMode {
   stackedView,
 }
 
+enum DrawingColor {
+  vanilla, // White
+  chocolate, // Black
+}
+
 class CakeCustomizerScreen extends StatefulWidget {
   final String cakeShape;
   final List<String?>? selectedLayers;
   final List<String?>? selectedFillings;
   final String? selectedFrosting;
   final List<String>? selectedToppings;
+  final bool enableDrawing;
 
   const CakeCustomizerScreen({
     super.key,
@@ -29,6 +35,7 @@ class CakeCustomizerScreen extends StatefulWidget {
     this.selectedFillings,
     this.selectedFrosting,
     this.selectedToppings,
+    this.enableDrawing = false,
   });
 
   @override
@@ -45,8 +52,27 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   bool _showInstruction = false;
   final GlobalKey _toppingsBoundaryKey = GlobalKey();
 
+  DrawingColor _selectedDrawingColor = DrawingColor.vanilla;
+  List<DrawingPoint> _drawingPoints = [];
+  bool _showDrawingMode = false;
+
   Future<Uint8List?> _captureToppingsImage() async {
     try {
+      RenderRepaintBoundary? boundary = _toppingsBoundaryKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+      ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      return byteData?.buffer.asUint8List();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<Uint8List?> _captureDrawing() async {
+    try {
+      // Capture from the toppings boundary which includes the drawing
       RenderRepaintBoundary? boundary = _toppingsBoundaryKey.currentContext
           ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return null;
@@ -196,7 +222,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
 
     return Column(
       children: [
-        // Topping selection buttons + Eraser tool
+        // Topping selection buttons + Eraser tool + Drawing toggle + Drawing colors
         if (widget.selectedToppings != null &&
             widget.selectedToppings!.isNotEmpty)
           Container(
@@ -205,7 +231,230 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                // Eraser tool button
+                // Drawing toggle button (only show if enableDrawing is true)
+                if (widget.enableDrawing)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _showDrawingMode = !_showDrawingMode;
+                        if (_showDrawingMode) {
+                          _selectedToppingToPlace = null;
+                          _showInstruction = false;
+                          _instructionTimer?.cancel();
+                        }
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 70,
+                      decoration: BoxDecoration(
+                        gradient: _showDrawingMode
+                            ? const LinearGradient(
+                                colors: [AppColors.pink500, AppColors.salmon400],
+                              )
+                            : null,
+                        color: _showDrawingMode ? null : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _showDrawingMode ? Colors.transparent : AppColors.pink700,
+                          width: 2,
+                        ),
+                        boxShadow: _showDrawingMode
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withAlpha(40),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : [],
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.edit,
+                            color: _showDrawingMode ? Colors.white : AppColors.pink700,
+                            size: 32,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Draw',
+                            style: GoogleFonts.ubuntu(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: _showDrawingMode ? Colors.white : AppColors.pink700,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // Drawing color buttons (when drawing mode is active)
+                if (_showDrawingMode) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedDrawingColor = DrawingColor.vanilla;
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 70,
+                        decoration: BoxDecoration(
+                          color: _selectedDrawingColor == DrawingColor.vanilla
+                              ? AppColors.pink700
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.pink700,
+                            width: 2,
+                          ),
+                          boxShadow: _selectedDrawingColor == DrawingColor.vanilla
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withAlpha(40),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.grey, width: 2),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Vanilla',
+                              style: GoogleFonts.ubuntu(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _selectedDrawingColor == DrawingColor.vanilla
+                                    ? Colors.white
+                                    : AppColors.pink700,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedDrawingColor = DrawingColor.chocolate;
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 70,
+                        decoration: BoxDecoration(
+                          color: _selectedDrawingColor == DrawingColor.chocolate
+                              ? AppColors.pink700
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.pink700,
+                            width: 2,
+                          ),
+                          boxShadow: _selectedDrawingColor == DrawingColor.chocolate
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withAlpha(40),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: Colors.black,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.grey, width: 2),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Chocolate',
+                              style: GoogleFonts.ubuntu(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _selectedDrawingColor == DrawingColor.chocolate
+                                    ? Colors.white
+                                    : AppColors.pink700,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Clear drawing button
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _drawingPoints.clear();
+                        });
+                      },
+                      child: Container(
+                        width: 70,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.red,
+                            width: 2,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.clear, color: Colors.red, size: 32),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Clear',
+                              style: GoogleFonts.ubuntu(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.red,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                // Eraser tool button (only when not in drawing mode)
+                if (!_showDrawingMode)
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: GestureDetector(
@@ -258,7 +507,8 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                     ),
                   ),
                 ),
-                // Topping buttons
+                // Topping buttons (only when not in drawing mode)
+                if (!_showDrawingMode)
                 ...widget.selectedToppings!.map((topping) {
                   final isSelected = _selectedToppingToPlace == topping;
                   final toppingAssetName =
@@ -333,10 +583,46 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
               ],
             ),
           ),
-        // Cake with toppings
+        // Cake with toppings and drawing
         Expanded(
           child: GestureDetector(
-            onTapDown: (details) {
+            onPanStart: _showDrawingMode ? (details) {
+              final RenderBox? cakeBox = _cakeImageKey.currentContext
+                  ?.findRenderObject() as RenderBox?;
+              if (cakeBox == null) return;
+              final localPosition = cakeBox.globalToLocal(details.globalPosition);
+              setState(() {
+                _drawingPoints.add(DrawingPoint(
+                  point: localPosition,
+                  color: _selectedDrawingColor == DrawingColor.vanilla
+                      ? Colors.white
+                      : Colors.black,
+                ));
+              });
+            } : null,
+            onPanUpdate: _showDrawingMode ? (details) {
+              final RenderBox? cakeBox = _cakeImageKey.currentContext
+                  ?.findRenderObject() as RenderBox?;
+              if (cakeBox == null) return;
+              final localPosition = cakeBox.globalToLocal(details.globalPosition);
+              setState(() {
+                _drawingPoints.add(DrawingPoint(
+                  point: localPosition,
+                  color: _selectedDrawingColor == DrawingColor.vanilla
+                      ? Colors.white
+                      : Colors.black,
+                ));
+              });
+            } : null,
+            onPanEnd: _showDrawingMode ? (details) {
+              setState(() {
+                _drawingPoints.add(DrawingPoint(
+                  point: Offset.zero,
+                  color: Colors.transparent,
+                ));
+              });
+            } : null,
+            onTapDown: !_showDrawingMode ? (details) {
               if (_selectedToppingToPlace == null) {
                 return;
               }
@@ -397,7 +683,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                   }
                 }
               });
-            },
+            } : null,
             child: RepaintBoundary(
               key: _toppingsBoundaryKey,
               child: Container(
@@ -419,6 +705,13 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                         ),
                       ),
                     ),
+                    // Drawing layer (on top of cake, under toppings)
+                    if (_showDrawingMode || _drawingPoints.isNotEmpty)
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: DrawingPainter(points: _drawingPoints),
+                        ),
+                      ),
                     // Placed toppings (no tap-to-remove)
                     ...(_placedToppings.map((topping) {
                       final toppingAssetName =
@@ -558,40 +851,47 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
   }
 
   void _addToCart() async {
-    Uint8List? toppingsImage;
-    if (_currentView == CakeViewMode.toppingsView) {
-      // Wait for the widget tree to finish building
-      await Future.delayed(const Duration(milliseconds: 100));
-      toppingsImage = await _captureToppingsImage();
-    }
-
-    // Count placed toppings
-    final Map<String, int> toppingCounts = {};
-    for (final t in _placedToppings) {
-      toppingCounts[t.toppingName] = (toppingCounts[t.toppingName] ?? 0) + 1;
-    }
-
-    final toppingsSummary =
-        toppingCounts.entries.map((e) => '${e.key}(x${e.value})').join(', ');
-
-    final selectedToppings =
-        _placedToppings.map((t) => t.toppingName).toSet().toList();
-
-    final cartItem = {
-      'shape': widget.cakeShape,
-      'layers': widget.selectedLayers,
-      'fillings': widget.selectedFillings,
-      'frosting': widget.selectedFrosting,
-      'timestamp': DateTime.now(),
-      'toppingsImage': toppingsImage,
-      'selectedToppings': selectedToppings, // list of unique topping names
-      'toppingsCounts': toppingCounts, // Map<String,int> for accurate counts
-      'toppingsSummary': toppingsSummary, // String summary for display
-      'quantity': 1
-    };
-
-    Navigator.pop(context, cartItem);
+  Uint8List? toppingsImage;
+  Uint8List? dedicationImage;
+  
+  if (_currentView == CakeViewMode.toppingsView) {
+    await Future.delayed(const Duration(milliseconds: 100));
+    toppingsImage = await _captureToppingsImage();
   }
+  
+  if (_showDrawingMode && _drawingPoints.isNotEmpty) {
+    dedicationImage = await _captureDrawing();
+  }
+
+  // Count placed toppings
+  final Map<String, int> toppingCounts = {};
+  for (final t in _placedToppings) {
+    toppingCounts[t.toppingName] = (toppingCounts[t.toppingName] ?? 0) + 1;
+  }
+
+  final toppingsSummary =
+      toppingCounts.entries.map((e) => '${e.key}(x${e.value})').join(', ');
+
+  final selectedToppings =
+      _placedToppings.map((t) => t.toppingName).toSet().toList();
+
+  final cartItem = {
+    'shape': widget.cakeShape,
+    'layers': widget.selectedLayers,
+    'fillings': widget.selectedFillings,
+    'frosting': widget.selectedFrosting,
+    'timestamp': DateTime.now(),
+    'toppingsImage': toppingsImage,
+    'selectedToppings': selectedToppings,
+    'toppingsCounts': toppingCounts,
+    'toppingsSummary': toppingsSummary,
+    'quantity': 1,
+    if (dedicationImage != null) 'dedicationDrawing': dedicationImage,
+    if (dedicationImage != null) 'dedicationMode': 'drawing',
+  };
+
+  Navigator.pop(context, cartItem);
+}
 
   @override
   void dispose() {
@@ -858,6 +1158,7 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                 ),
               ),
             ),
+
           ],
         ));
   }
@@ -942,4 +1243,97 @@ class ToppingPlacement {
     required this.position,
     this.size = 50,
   });
+}
+
+class DrawingPoint {
+  final Offset point;
+  final Color color;
+  final double strokeWidth;
+
+  DrawingPoint({
+    required this.point,
+    required this.color,
+    this.strokeWidth = 3.0,
+  });
+}
+
+// Add drawing canvas painter
+class DrawingPainter extends CustomPainter {
+  final List<DrawingPoint> points;
+
+  DrawingPainter({required this.points});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (int i = 0; i < points.length - 1; i++) {
+      if (points[i].point != Offset.zero &&
+          points[i + 1].point != Offset.zero) {
+        final paint = Paint()
+          ..color = points[i].color
+          ..strokeWidth = points[i].strokeWidth
+          ..strokeCap = StrokeCap.round;
+        canvas.drawLine(points[i].point, points[i + 1].point, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(DrawingPainter oldDelegate) => true;
+}
+
+
+
+class _ColorButton extends StatelessWidget {
+  const _ColorButton({
+    required this.color,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final Color color;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.pink700 : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.pink700,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.grey, width: 1),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.ubuntu(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? Colors.white : AppColors.pink700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

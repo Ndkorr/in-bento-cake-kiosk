@@ -12,6 +12,10 @@ import 'package:shimmer/shimmer.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
+import 'dart:html' as html;
+
 
 class StaffScreen extends StatefulWidget {
   const StaffScreen({super.key});
@@ -21,6 +25,13 @@ class StaffScreen extends StatefulWidget {
 }
 
 class _StaffScreenState extends State<StaffScreen> {
+
+  bool _showEditKiosk = false;
+  bool _showMenuManager = false;
+  List<Map<String, dynamic>> _menuCombos = [];
+  int? _selectedComboIndex;
+  String? _selectedComboDocId;
+  
   // Dummy user list for demonstration
   int? _selectedUserIndex;
   bool _showUserManager = false;
@@ -92,6 +103,457 @@ class _StaffScreenState extends State<StaffScreen> {
       _selectedUserIndex = null;
       _selectedUserDocId = null;
     });
+  }
+
+  void _showEditKioskOptions() {
+    setState(() {
+      _showEditKiosk = true;
+    });
+  }
+
+  void _hideEditKioskOptions() {
+    setState(() {
+      _showEditKiosk = false;
+      _showMenuManager = false;
+      _selectedComboIndex = null;
+      _selectedComboDocId = null;
+    });
+  }
+
+  void _showMenuManagerScreen() {
+    setState(() {
+      _showMenuManager = true;
+    });
+    _loadMenuCombos();
+  }
+
+  void _hideMenuManagerScreen() {
+    setState(() {
+      _showMenuManager = false;
+      _selectedComboIndex = null;
+      _selectedComboDocId = null;
+    });
+  }
+
+  // ImgBB API key (free tier: 5000 uploads/month, no login required)
+  final String _imgbbApiKey =
+      '03519e78bf178a14f33e42235be3a963';
+
+// Upload image to ImgBB and return direct URL
+  // Upload image to ImgBB and return direct URL
+  Future<String?> _uploadImageToImgBB(
+      Uint8List imageBytes, String fileName) async {
+    try {
+      debugPrint('Uploading image: $fileName (${imageBytes.length} bytes)');
+      debugPrint('ImgBB key length: ${_imgbbApiKey.length}');
+
+      // Safety: bail if key is empty
+      if (_imgbbApiKey.isEmpty) {
+        debugPrint('ImgBB API key is empty!');
+        return null;
+      }
+
+      final base64Image = base64Encode(imageBytes);
+
+      // Build URL explicitly to avoid losing the value
+      final uri = Uri.parse('https://api.imgbb.com/1/upload?key=$_imgbbApiKey');
+      debugPrint('Sending request to: $uri');
+
+      final request = http.MultipartRequest('POST', uri);
+      request.fields['image'] = base64Image;
+      request.fields['name'] =
+          fileName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      debugPrint('ImgBB response status: ${response.statusCode}');
+      debugPrint('ImgBB response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['success'] == true) {
+          final url = json['data']['url'];
+          debugPrint('Upload successful! URL: $url');
+          return url;
+        }
+        debugPrint('ImgBB error: ${json['error']}');
+        return null;
+      }
+
+      debugPrint('HTTP error: ${response.statusCode}');
+      return null;
+    } catch (e, stackTrace) {
+      debugPrint('ImgBB upload error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  Future<void> _loadMenuCombos() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('menuCombos')
+          .orderBy('name')
+          .get();
+
+      setState(() {
+        _menuCombos = snapshot.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'name': data['name'] ?? 'Unknown',
+            'description': data['description'] ?? '',
+            'price': (data['price'] as num?)?.toDouble() ?? 0.0,
+            'image': data['image'] ?? 'assets/images/cake_1.png',
+          };
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('Error loading menu combos: $e');
+    }
+  }
+
+  Future<void> _addMenuCombo() async {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final priceController = TextEditingController();
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Cake Combo'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Combo Name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(labelText: 'Details'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceController,
+                decoration: const InputDecoration(labelText: 'Price'),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final name = nameController.text.trim();
+              final description = descriptionController.text.trim();
+              final price = double.tryParse(priceController.text.trim()) ?? 0.0;
+
+              if (name.isNotEmpty) {
+                Navigator.pop(context, {
+                  'name': name,
+                  'description': description,
+                  'price': price,
+                  'image': 'assets/images/cake_1.png', // Default image
+                });
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      await FirebaseFirestore.instance.collection('menuCombos').add(result);
+      await _loadMenuCombos();
+    }
+  }
+
+  Future<void> _updateMenuCombo() async {
+    if (_selectedComboIndex == null) return;
+
+    final combo = _menuCombos[_selectedComboIndex!];
+    final nameController = TextEditingController(text: combo['name']);
+    final descriptionController =
+        TextEditingController(text: combo['description']);
+    final priceController =
+        TextEditingController(text: combo['price'].toString());
+
+    String? selectedImageUrl = combo['image'];
+    Uint8List? imagePreviewBytes;
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit Cake Combo'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Details'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: priceController,
+                  decoration: const InputDecoration(labelText: 'Price'),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+
+                // Image upload section
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Cake Image:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+
+                    // Preview
+                    if (imagePreviewBytes != null)
+                      Container(
+                        height: 120,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(imagePreviewBytes!,
+                              fit: BoxFit.cover),
+                        ),
+                      )
+                    else if (selectedImageUrl != null)
+                      Container(
+                        height: 120,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(selectedImageUrl,
+                              fit: BoxFit.cover),
+                        ),
+                      ),
+
+                    const SizedBox(height: 8),
+
+                    // Upload button
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Choose Image'),
+                      onPressed: () async {
+                        try {
+                          // Create HTML file input element
+                          final input = html.FileUploadInputElement()
+                            ..accept = 'image/*';
+                          input.click();
+
+                          await input.onChange.first;
+
+                          if (input.files!.isNotEmpty) {
+                            final file = input.files!.first;
+                            final reader = html.FileReader();
+
+                            reader.readAsArrayBuffer(file);
+                            await reader.onLoad.first;
+
+                            final bytes = reader.result as List<int>;
+
+                            setDialogState(() {
+                              imagePreviewBytes = Uint8List.fromList(bytes);
+                            });
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Image selected: ${file.name}'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          debugPrint('File selection error: $e');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = nameController.text.trim();
+                final description = descriptionController.text.trim();
+                final price =
+                    double.tryParse(priceController.text.trim()) ?? 0.0;
+
+                if (name.isEmpty) return;
+
+                // Upload new image if selected
+                String? finalImageUrl = selectedImageUrl;
+                if (imagePreviewBytes != null) {
+                  // Show uploading indicator
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Uploading image...')),
+                  );
+
+                  finalImageUrl = await _uploadImageToImgBB(
+                    imagePreviewBytes!,
+                    '${name.replaceAll(' ', '_')}.png',
+                  );
+
+                  if (finalImageUrl == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content:
+                            Text('Image upload failed. Keeping old image.'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    finalImageUrl = combo['image']; // Fallback to old image
+                  }
+                }
+
+                Navigator.pop(context, {
+                  'name': name,
+                  'description': description,
+                  'price': price,
+                  'image': finalImageUrl,
+                });
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null) {
+      await FirebaseFirestore.instance
+          .collection('menuCombos')
+          .doc(combo['id'])
+          .update(result);
+      await _loadMenuCombos();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cake combo updated successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteMenuCombo() async {
+    if (_selectedComboIndex == null) return;
+
+    final combo = _menuCombos[_selectedComboIndex!];
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Combo'),
+        content: Text('Are you sure you want to delete "${combo['name']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await FirebaseFirestore.instance
+          .collection('menuCombos')
+          .doc(combo['id'])
+          .delete();
+      setState(() {
+        _selectedComboIndex = null;
+        _selectedComboDocId = null;
+      });
+      await _loadMenuCombos();
+    }
+  }
+
+  Future<void> _resetOrderCount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Order Count'),
+        content: const Text(
+          'This will reset the order counter to 0. This action cannot be undone. Are you sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('counters')
+            .doc('orders')
+            .set({'latestOrderNumber': 0});
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order count reset successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error resetting order count: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<List<Map<String, dynamic>>> _loadOrderItems(
@@ -2053,7 +2515,7 @@ class _StaffScreenState extends State<StaffScreen> {
                                 maxX: _toppingsLabels.isNotEmpty
                                     ? (_toppingsLabels.length - 1).toDouble()
                                     : 4,
-                                minY: minY > 0 ? minY - 1 : 0,
+                                minY: 0, 
                                 maxY: maxY + 1,
                                 lineBarsData:
                                     List.generate(_topToppings.length, (i) {
@@ -2529,6 +2991,200 @@ class _StaffScreenState extends State<StaffScreen> {
       );
     }
 
+    if (_showEditKiosk && !_showMenuManager) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppColors.cream200,
+          elevation: 0,
+          title:
+              const Text('Edit Kiosk', style: TextStyle(color: Colors.black)),
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: _hideEditKioskOptions,
+          ),
+        ),
+        backgroundColor: AppColors.cream200,
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedHoverButton(
+                label: 'Menu',
+                icon: Icons.restaurant_menu,
+                onTap: _showMenuManagerScreen,
+              ),
+              const SizedBox(height: 16),
+              AnimatedHoverButton(
+                label: 'Reset order count',
+                icon: Icons.refresh,
+                onTap: _resetOrderCount,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_showMenuManager) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppColors.cream200,
+          elevation: 0,
+          title:
+              const Text('Menu Manager', style: TextStyle(color: Colors.black)),
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: _hideMenuManagerScreen,
+          ),
+        ),
+        backgroundColor: AppColors.cream200,
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (_selectedComboIndex != null)
+                    ElevatedButton.icon(
+                      onPressed: _updateMenuCombo,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.pink700,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: _menuCombos.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No combos available.',
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _menuCombos.length,
+                        itemBuilder: (context, index) {
+                          final combo = _menuCombos[index];
+                          final isSelected = _selectedComboIndex == index;
+
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedComboIndex = index;
+                                _selectedComboDocId = combo['id'];
+                              });
+                            },
+                            onDoubleTap: _updateMenuCombo,
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? AppColors.pink700
+                                      : Colors.transparent,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withAlpha(15),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          AppColors.cream200,
+                                          AppColors.peach300.withAlpha(77),
+                                        ],
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.cake,
+                                      color: AppColors.salmon400,
+                                      size: 32,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          combo['name'],
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w900,
+                                            fontStyle: FontStyle.italic,
+                                            color: AppColors.pink700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          combo['description'],
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          AppColors.pink500,
+                                          AppColors.salmon400,
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '₱${combo['price'].toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.cream200,
       appBar: AppBar(
@@ -2565,7 +3221,9 @@ class _StaffScreenState extends State<StaffScreen> {
                 ),
                 const SizedBox(height: 16),
                 AnimatedHoverButton(
-                    label: 'Edit kiosk', icon: Icons.edit, onTap: () {}),
+                    label: 'Edit kiosk',
+                    icon: Icons.edit,
+                    onTap: _showEditKioskOptions),
                 const SizedBox(height: 16),
                 AnimatedHoverButton(
                   label: 'Manage users',

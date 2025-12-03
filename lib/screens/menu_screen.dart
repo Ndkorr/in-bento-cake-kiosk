@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import '../theme/app_colors.dart';
 import 'cake_details_screen.dart';
 import 'payment_method_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key, required this.orderType});
@@ -21,32 +22,14 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
   int? _selectedCakeIndex;
   final Map<int, int> _cart = {}; // cakeIndex -> quantity
   List<Map<String, dynamic>> _customCakes = []; // Cart from customizer
+  bool _loadingCakes = false;
 
   // Keys for animation
   final Map<int, GlobalKey> _cakeCardKeys = {};
   final GlobalKey _cartIconKey = GlobalKey();
 
-  // Sample cake data - replace with your actual data later
-  final List<Map<String, dynamic>> _cakes = [
-    {
-      'name': 'Combo C',
-      'description': 'Minifesto Deluxe',
-      'price': 499.00,
-      'image': 'assets/images/cake_1.png',
-    },
-    {
-      'name': 'Combo B',
-      'description': 'Minifesto Elite',
-      'price': 499.00,
-      'image': 'assets/images/cake_2.png',
-    },
-    {
-      'name': 'Combo A',
-      'description': 'Minifesto Classic',
-      'price': 499.00,
-      'image': 'assets/images/cake_3.png',
-    },
-  ];
+  // Cakes loaded from Firestore
+  List<Map<String, dynamic>> _cakes = [];
 
   @override
   void initState() {
@@ -55,12 +38,43 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat(reverse: true);
+    _loadCakesFromFirestore();
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCakesFromFirestore() async {
+    setState(() => _loadingCakes = true);
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('menuCombos')
+          .orderBy('name', descending: true)
+          .get();
+
+      final items = snap.docs.map((d) {
+        final data = d.data();
+        return {
+          'id': d.id,
+          'name': data['name'] ?? 'Unknown',
+          'description': data['description'] ?? '',
+          'price': (data['price'] as num?)?.toDouble() ?? 0.0,
+          'image': data['image'] ?? 'assets/images/cake_1.png',
+        };
+      }).toList();
+
+      setState(() {
+        _cakes = items;
+        _loadingCakes = false;
+        _selectedCakeIndex = null;
+      });
+    } catch (e) {
+      debugPrint('Error loading menuCombos: $e');
+      setState(() => _loadingCakes = false);
+    }
   }
 
   double get _totalPrice {
@@ -316,6 +330,19 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildCakeGrid() {
+    if (_loadingCakes) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.pink700),
+      );
+    }
+    if (_cakes.isEmpty) {
+      return const Center(
+        child: Text(
+          'No cakes available',
+          style: TextStyle(fontSize: 16, color: Colors.grey),
+        ),
+      );
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final isLandscape = constraints.maxWidth > constraints.maxHeight;
@@ -716,7 +743,23 @@ class _FlyingCakeAnimationState extends State<_FlyingCakeAnimation>
                 borderRadius: BorderRadius.circular(24),
               ),
               clipBehavior: Clip.antiAlias,
-              child: Image.asset(widget.cakeImage, fit: BoxFit.cover),
+              child: widget.cakeImage.startsWith('http')
+                  ? Image.network(
+                      widget.cakeImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.cake,
+                        color: AppColors.salmon400,
+                      ),
+                    )
+                  : Image.asset(
+                      widget.cakeImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.cake,
+                        color: AppColors.salmon400,
+                      ),
+                    ),
             ),
           ),
         );
@@ -1167,12 +1210,19 @@ class _CartItem extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                cake['image'],
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.cake, color: AppColors.salmon400),
-              ),
+              child: (cake['image'] is String && (cake['image'] as String).startsWith('http'))
+                  ? Image.network(
+                      cake['image'],
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.cake, color: AppColors.salmon400),
+                    )
+                  : Image.asset(
+                      cake['image'] ?? 'assets/images/cake_1.png',
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.cake, color: AppColors.salmon400),
+                    ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1318,15 +1368,25 @@ class _CustomCakeCartItem extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: cakeImage != null
-                  ? Image.asset(
-                      cakeImage,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.cake_rounded,
-                        color: AppColors.salmon400,
-                        size: 32,
-                      ),
-                    )
+                  ? (cakeImage is String && cakeImage.startsWith('http')
+                      ? Image.network(
+                          cakeImage,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.cake_rounded,
+                            color: AppColors.salmon400,
+                            size: 32,
+                          ),
+                        )
+                      : Image.asset(
+                          cakeImage,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.cake_rounded,
+                            color: AppColors.salmon400,
+                            size: 32,
+                          ),
+                        ))
                   : const Icon(
                       Icons.cake_rounded,
                       color: Colors.white,
@@ -1754,20 +1814,47 @@ class CakeCardState extends State<CakeCard> with TickerProviderStateMixin {
                             child: AnimatedBuilder(
                               animation: _scrollAnimation,
                               builder: (context, child) {
-                                return Image.asset(
-                                  widget.cake['image'],
-                                  fit: BoxFit.cover,
-                                  alignment: widget.isSelected
-                                      ? _scrollAnimation.value
-                                      : Alignment.center,
-                                  filterQuality: FilterQuality.high,
-                                  width: double.infinity,
-                                  errorBuilder: (_, __, ___) => Icon(
-                                    Icons.cake,
-                                    size: widget.isLandscape ? 60 : 80,
-                                    color: AppColors.salmon400,
-                                  ),
-                                );
+                                final img = widget.cake['image'] as String?;
+                                final alignment = widget.isSelected
+                                    ? _scrollAnimation.value
+                                    : Alignment.center;
+                                if (img != null && img.startsWith('http')) {
+                                  return Image.network(
+                                    img,
+                                    fit: BoxFit.cover,
+                                    alignment: alignment,
+                                    filterQuality: FilterQuality.high,
+                                    width: double.infinity,
+                                    loadingBuilder: (context, child, progress) {
+                                      if (progress == null) return child;
+                                      return Center(
+                                        child: SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: const CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (_, __, ___) => Icon(
+                                      Icons.cake,
+                                      size: widget.isLandscape ? 60 : 80,
+                                      color: AppColors.salmon400,
+                                    ),
+                                  );
+                                } else {
+                                  return Image.asset(
+                                    img ?? 'assets/images/cake_1.png',
+                                    fit: BoxFit.cover,
+                                    alignment: alignment,
+                                    filterQuality: FilterQuality.high,
+                                    width: double.infinity,
+                                    errorBuilder: (_, __, ___) => Icon(
+                                      Icons.cake,
+                                      size: widget.isLandscape ? 60 : 80,
+                                      color: AppColors.salmon400,
+                                    ),
+                                  );
+                                }
                               },
                             ),
                           ),
