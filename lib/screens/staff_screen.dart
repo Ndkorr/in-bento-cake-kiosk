@@ -187,7 +187,7 @@ class _StaffScreenState extends State<StaffScreen> {
       debugPrint('ImgBB upload error: $e');
       debugPrint('Stack trace: $stackTrace');
       return null;
-    } 
+    }  
   }
 
   Future<void> _loadMenuCombos() async {
