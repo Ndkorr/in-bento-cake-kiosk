@@ -352,7 +352,7 @@ class _StaffScreenState extends State<StaffScreen> {
                           child: Image.network(selectedImageUrl,
                               fit: BoxFit.cover),
                         ),
-                      ),
+                      ), 
 
                     const SizedBox(height: 8),
 
