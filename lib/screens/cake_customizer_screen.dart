@@ -587,10 +587,8 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
         Expanded(
           child: GestureDetector(
             onPanStart: _showDrawingMode ? (details) {
-              final RenderBox? cakeBox = _cakeImageKey.currentContext
-                  ?.findRenderObject() as RenderBox?;
-              if (cakeBox == null) return;
-              final localPosition = cakeBox.globalToLocal(details.globalPosition);
+              // Use localPosition directly for better touch accuracy
+              final localPosition = details.localPosition;
               setState(() {
                 _drawingPoints.add(DrawingPoint(
                   point: localPosition,
@@ -601,10 +599,8 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
               });
             } : null,
             onPanUpdate: _showDrawingMode ? (details) {
-              final RenderBox? cakeBox = _cakeImageKey.currentContext
-                  ?.findRenderObject() as RenderBox?;
-              if (cakeBox == null) return;
-              final localPosition = cakeBox.globalToLocal(details.globalPosition);
+              // Use localPosition directly for better touch accuracy
+              final localPosition = details.localPosition;
               setState(() {
                 _drawingPoints.add(DrawingPoint(
                   point: localPosition,
@@ -627,13 +623,13 @@ class _CakeCustomizerScreenState extends State<CakeCustomizerScreen> {
                 return;
               }
 
-              final RenderBox? cakeBox = _cakeImageKey.currentContext
+              // Use localPosition relative to the gesture widget
+              final localPosition = details.localPosition;
+              // Measure against the toppings/drawing boundary size
+              final RenderBox? boundaryBox = _toppingsBoundaryKey.currentContext
                   ?.findRenderObject() as RenderBox?;
-              if (cakeBox == null) return;
-
-              final localPosition =
-                  cakeBox.globalToLocal(details.globalPosition);
-              final cakeSize = cakeBox.size;
+              if (boundaryBox == null) return;
+              final cakeSize = boundaryBox.size;
 
               if (localPosition.dx < 0 ||
                   localPosition.dx > cakeSize.width ||
