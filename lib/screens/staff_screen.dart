@@ -14,7 +14,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
-import 'dart:html' as html;
+// Removed web-only dart:html import to keep Android/iOS builds working.
 
 
 class StaffScreen extends StatefulWidget {
@@ -356,38 +356,41 @@ class _StaffScreenState extends State<StaffScreen> {
 
                     const SizedBox(height: 8),
 
-                    // Upload button
+                    // Upload button (cross-platform via file_picker)
                     ElevatedButton.icon(
                       icon: const Icon(Icons.upload_file),
                       label: const Text('Choose Image'),
                       onPressed: () async {
                         try {
-                          // Create HTML file input element
-                          final input = html.FileUploadInputElement()
-                            ..accept = 'image/*';
-                          input.click();
+                          final result = await FilePicker.platform.pickFiles(
+                            type: FileType.image,
+                            allowMultiple: false,
+                            withData: true, // ensures bytes are available on web/mobile
+                          );
 
-                          await input.onChange.first;
+                          if (result != null && result.files.isNotEmpty) {
+                            final file = result.files.first;
+                            final bytes = file.bytes;
 
-                          if (input.files!.isNotEmpty) {
-                            final file = input.files!.first;
-                            final reader = html.FileReader();
+                            if (bytes != null) {
+                              setDialogState(() {
+                                imagePreviewBytes = Uint8List.fromList(bytes);
+                              });
 
-                            reader.readAsArrayBuffer(file);
-                            await reader.onLoad.first;
-
-                            final bytes = reader.result as List<int>;
-
-                            setDialogState(() {
-                              imagePreviewBytes = Uint8List.fromList(bytes);
-                            });
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Image selected: ${file.name}'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Image selected: ${file.name ?? 'image'}'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Could not read file bytes.'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
                           }
                         } catch (e) {
                           debugPrint('File selection error: $e');
