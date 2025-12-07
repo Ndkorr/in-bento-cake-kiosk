@@ -20,6 +20,7 @@ class LoadingOverlay extends StatefulWidget {
   final WidgetBuilder? nextScreenBuilder;
 
   final Future<void>? waitFor;
+  
  
 
   @override
