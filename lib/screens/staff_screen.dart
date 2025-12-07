@@ -173,9 +173,21 @@ class _StaffScreenState extends State<StaffScreen> {
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         if (json['success'] == true) {
-          final url = json['data']['url'];
-          debugPrint('Upload successful! URL: $url');
-          return url;
+          // Prefer the direct image URL to avoid loading a webpage on mobile
+          final data = json['data'];
+          String? directUrl;
+          try {
+            directUrl = data['image']?['url'] as String?; // direct content URL
+          } catch (_) {}
+          directUrl ??= data['display_url'] as String?; // fallback to display url
+          directUrl ??= data['url'] as String?; // last resort: viewer page
+
+          if (directUrl != null) {
+            debugPrint('Upload successful! Direct URL: $directUrl');
+            return directUrl;
+          }
+          debugPrint('Upload succeeded but URL fields missing');
+          return null;
         }
         debugPrint('ImgBB error: ${json['error']}');
         return null;
@@ -1352,7 +1364,7 @@ class _StaffScreenState extends State<StaffScreen> {
 
   void _showAboutScreen() {
     const appName = 'In Bento Cake Kiosk';
-    const fullVersion = '5.5.0+1';
+    const fullVersion = '6.0.2';
     final displayVersion = fullVersion.split('+').first;
     const repoUrl = 'https://github.com/Ndkorr/in-bento-cake-kiosk';
     const supportEmail = 'mathewastorga321@gmail.com';
@@ -1368,25 +1380,28 @@ class _StaffScreenState extends State<StaffScreen> {
               onPressed: () => Navigator.pop(context),
             ),
           ),
-          body: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 900),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+          body: Stack(
+            children: [
+              const TiledIcons(),
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -1571,10 +1586,12 @@ class _StaffScreenState extends State<StaffScreen> {
                         ),
                       ),
                     ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -2629,127 +2646,105 @@ class _StaffScreenState extends State<StaffScreen> {
             onPressed: _hideManageOrders,
           ),
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+        body: Stack(
+          children: [
+            const TiledIcons(),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('orders')
-                  .orderBy('orderNumber', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final docs = snapshot.data!.docs;
-                if (docs.isEmpty) {
-                  return const Center(child: Text('No orders found.'));
-                }
-                return ListView.separated(
-                  itemCount: docs.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    final orderId = docs[index].id;
-                    final orderNumber = data['orderNumber'] ?? 0;
-                    final orderType = data['orderType'] ?? 'Unknown';
-                    final total = data['total'];
-                    final date = data['date'] ?? '';
-                    final cartItems = (data['cartItems'] as List<dynamic>?)
-                            ?.map<Map<String, dynamic>>((item) {
-                          final map = Map<String, dynamic>.from(item as Map);
-                          // If you stored a thumbnail as bytes, convert from base64 or Blob if needed
-                          if (map['toppingsThumbnail'] != null) {
-                            final thumb = map['toppingsThumbnail'];
-                            if (thumb is String) {
-                              // Try base64 decode first
-                              try {
-                                map['toppingsThumbnail'] = base64Decode(thumb);
-                              } catch (_) {
-                                // If not base64, fallback to codeUnits
-                                map['toppingsThumbnail'] =
-                                    Uint8List.fromList(thumb.codeUnits);
-                              }
-                            } else if (thumb is List) {
-                              map['toppingsThumbnail'] =
-                                  Uint8List.fromList(thumb.cast<int>());
-                            } else if (thumb.runtimeType.toString() ==
-                                '_Blob') {
-                              // Firestore web may return a _Blob type
-                              map['toppingsThumbnail'] = thumb.bytes;
-                            }
-                          }
-                          return map;
-                        }).toList() ??
-                        [];
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('orders')
+                      .orderBy('orderNumber', descending: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final docs = snapshot.data!.docs;
+                    if (docs.isEmpty) {
+                      return const Center(child: Text('No orders found.'));
+                    }
+                    return ListView.separated(
+                      itemCount: docs.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        final orderId = docs[index].id;
+                        final orderNumber = data['orderNumber'] ?? 0;
+                        final orderType = data['orderType'] ?? 'Unknown';
+                        final total = data['total'];
+                        final date = data['date'] ?? '';
 
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedOrderIndex = index;
-                          _selectedUserName = data['user']?.toString();
-                          _selectedUserDocId = docs[index].id;
-                        });
-                      },
-                      onDoubleTap: () async {
-                        final List<Map<String, dynamic>> items =
-                            await _loadOrderItems(orderId, data);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ReceiptScreen(
-                              cartItems: items,
-                              orderType: orderType,
-                              orderNumber: orderNumber,
-                              showDoneButton: false,
-                              fromStaff: true,
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedOrderIndex = index;
+                              _selectedUserName = data['user']?.toString();
+                              _selectedUserDocId = docs[index].id;
+                            });
+                          },
+                          onDoubleTap: () async {
+                            final items = await _loadOrderItems(orderId, data);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ReceiptScreen(
+                                  cartItems: items,
+                                  orderType: orderType,
+                                  orderNumber: orderNumber,
+                                  showDoneButton: false,
+                                  fromStaff: true,
+                                ),
+                              ),
+                            );
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.ease,
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _selectedOrderIndex == index
+                                  ? Colors.pink[50]
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                              border: _selectedOrderIndex == index
+                                  ? Border.all(
+                                      color: AppColors.pink700, width: 2)
+                                  : null,
+                            ),
+                            child: ListTile(
+                              title: Text(
+                                  'Order #${orderNumber.toString().padLeft(5, '0')}'),
+                              subtitle: Text('Type: $orderType\nDate: $date'),
+                              trailing: Text(
+                                total != null
+                                    ? '₱${(total is int ? total.toDouble() : total as double).toStringAsFixed(2)}'
+                                    : '',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
                             ),
                           ),
                         );
                       },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.ease,
-                        margin: const EdgeInsets.symmetric(
-                            vertical: 4, horizontal: 0),
-                        decoration: BoxDecoration(
-                          color: _selectedOrderIndex == index
-                              ? Colors.pink[50]
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                          border: _selectedOrderIndex == index
-                              ? Border.all(color: AppColors.pink700, width: 2)
-                              : null,
-                        ),
-                        child: ListTile(
-                          title: Text(
-                              'Order #${orderNumber.toString().padLeft(5, '0')}'),
-                          subtitle: Text('Type: $orderType\nDate: $date'),
-                          trailing: Text(
-                            total != null
-                                ? '₱${(total is int ? total.toDouble() : total as double).toStringAsFixed(2)}'
-                                : '',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
                     );
                   },
-                );
-              },
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       );
     }
@@ -2763,237 +2758,246 @@ class _StaffScreenState extends State<StaffScreen> {
             onPressed: _hideManageUsers,
           ),
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final docs = snapshot.data!.docs;
-                      return ListView.separated(
-                        itemCount: docs.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final data =
-                              docs[index].data() as Map<String, dynamic>;
-                          final selected = _selectedUserIndex == index;
-                          return GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedUserIndex = index;
-                                _selectedUserDocId = docs[index].id;
-                                _selectedUserName =
-                                    (data['user'] ?? '').toString();
-                              });
-                            },
-                            onDoubleTap: () async {
-                              // Prevent editing protected user
-                              final selName =
-                                  (data['user'] ?? '').toString().toLowerCase();
-                              if (selName == _protectedUser) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'This account cannot be edited.')),
-                                );
-                                return;
-                              }
-                              final emailController = TextEditingController(
-                                  text: data['user'] ?? '');
-                              final passwordController = TextEditingController(
-                                  text: data['password'] ?? '');
-                              final result =
-                                  await showDialog<Map<String, String>>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Edit User'),
-                                  content: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      TextField(
-                                        controller: emailController,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Email',
-                                          hintText: 'user@inbento.com',
-                                        ),
-                                      ),
-                                      TextField(
-                                        controller: passwordController,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Password',
-                                          hintText: 'password',
-                                        ),
-                                        obscureText: true,
-                                      ),
-                                    ],
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () async {
-                                        final email =
-                                            emailController.text.trim();
-                                        final password =
-                                            passwordController.text.trim();
-                                        if (email.isNotEmpty &&
-                                            password.isNotEmpty) {
-                                          final confirm =
-                                              await showDialog<bool>(
-                                            context: context,
-                                            builder: (context) => AlertDialog(
-                                              title: const Text('Save Changes'),
-                                              content: const Text(
-                                                  'Are you sure you want to save these changes?'),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(
-                                                          context, false),
-                                                  child: const Text('Cancel'),
-                                                ),
-                                                ElevatedButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(
-                                                          context, true),
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                    backgroundColor:
-                                                        AppColors.pink700,
-                                                  ),
-                                                  child: const Text('Save'),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                          if (confirm == true) {
-                                            Navigator.pop(context, {
-                                              'user': email,
-                                              'password': password
-                                            });
-                                          }
-                                        }
-                                      },
-                                      child: const Text('Save'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (result != null) {
-                                await FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(docs[index].id)
-                                    .update(result);
-                                // keep local selected name in sync
-                                setState(() {
-                                  _selectedUserName =
-                                      result['user']?.toString();
-                                });
-                              }
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              curve: Curves.ease,
-                              margin: const EdgeInsets.symmetric(
-                                  vertical: 4, horizontal: 0),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? Colors.transparent
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
-                                border: selected
-                                    ? Border.all(
-                                        color: AppColors.pink700, width: 2)
-                                    : null,
-                                boxShadow: selected
-                                    ? [
-                                        BoxShadow(
-                                          color: AppColors.pink700
-                                              .withOpacity(0.15),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ]
-                                    : [],
-                              ),
-                              child: ListTile(
-                                title: Text(
-                                  data['user'] ?? '',
-                                  style: TextStyle(
-                                    fontWeight: selected
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: selected
-                                        ? AppColors.pink700
-                                        : Colors.black,
-                                  ),
-                                ),
-                                selected: selected,
-                                trailing: selected
-                                    ? const Icon(Icons.check_circle,
-                                        color: AppColors.pink700)
-                                    : null,
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AnimatedHoverButton(
-                        label: 'Add',
-                        icon: Icons.person_add,
-                        onTap: _addUser,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: AnimatedHoverButton(
-                        label: 'Delete',
-                        icon: Icons.delete,
-                        // disable delete when selected user is protected
-                        onTap: (_selectedUserDocId != null &&
-                                (_selectedUserName?.toLowerCase() !=
-                                    _protectedUser))
-                            ? _deleteUser
-                            : null,
-                      ),
+        body: Stack(
+          children: [
+            const TiledIcons(),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-              ],
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('users')
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) {
+                            return const Center(
+                                child: CircularProgressIndicator());
+                          }
+                          final docs = snapshot.data!.docs;
+                          return ListView.separated(
+                            itemCount: docs.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final data =
+                                  docs[index].data() as Map<String, dynamic>;
+                              final selected = _selectedUserIndex == index;
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedUserIndex = index;
+                                    _selectedUserDocId = docs[index].id;
+                                    _selectedUserName =
+                                        (data['user'] ?? '').toString();
+                                  });
+                                },
+                                onDoubleTap: () async {
+                                  final selName = (data['user'] ?? '')
+                                      .toString()
+                                      .toLowerCase();
+                                  if (selName == _protectedUser) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'This account cannot be edited.')),
+                                    );
+                                    return;
+                                  }
+                                  final emailController = TextEditingController(
+                                      text: data['user'] ?? '');
+                                  final passwordController =
+                                      TextEditingController(
+                                          text: data['password'] ?? '');
+                                  final result =
+                                      await showDialog<Map<String, String>>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Edit User'),
+                                      content: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          TextField(
+                                            controller: emailController,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Email',
+                                              hintText: 'user@inbento.com',
+                                            ),
+                                          ),
+                                          TextField(
+                                            controller: passwordController,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Password',
+                                              hintText: 'password',
+                                            ),
+                                            obscureText: true,
+                                          ),
+                                        ],
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () async {
+                                            final email =
+                                                emailController.text.trim();
+                                            final password =
+                                                passwordController.text.trim();
+                                            if (email.isNotEmpty &&
+                                                password.isNotEmpty) {
+                                              final confirm =
+                                                  await showDialog<bool>(
+                                                context: context,
+                                                builder: (context) =>
+                                                    AlertDialog(
+                                                  title: const Text(
+                                                      'Save Changes'),
+                                                  content: const Text(
+                                                      'Are you sure you want to save these changes?'),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              context, false),
+                                                      child:
+                                                          const Text('Cancel'),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              context, true),
+                                                      style: ElevatedButton
+                                                          .styleFrom(
+                                                        backgroundColor:
+                                                            AppColors.pink700,
+                                                      ),
+                                                      child: const Text('Save'),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              if (confirm == true) {
+                                                Navigator.pop(context, {
+                                                  'user': email,
+                                                  'password': password
+                                                });
+                                              }
+                                            }
+                                          },
+                                          child: const Text('Save'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (result != null) {
+                                    await FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(docs[index].id)
+                                        .update(result);
+                                    setState(() {
+                                      _selectedUserName =
+                                          result['user']?.toString();
+                                    });
+                                  }
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.ease,
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: selected
+                                        ? Border.all(
+                                            color: AppColors.pink700,
+                                            width: 2,
+                                          )
+                                        : null,
+                                    boxShadow: selected
+                                        ? [
+                                            BoxShadow(
+                                              color: AppColors.pink700
+                                                  .withOpacity(0.15),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ]
+                                        : [],
+                                  ),
+                                  child: ListTile(
+                                    title: Text(
+                                      data['user'] ?? '',
+                                      style: TextStyle(
+                                        fontWeight: selected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: selected
+                                            ? AppColors.pink700
+                                            : Colors.black,
+                                      ),
+                                    ),
+                                    selected: selected,
+                                    trailing: selected
+                                        ? const Icon(Icons.check_circle,
+                                            color: AppColors.pink700)
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AnimatedHoverButton(
+                            label: 'Add',
+                            icon: Icons.person_add,
+                            onTap: _addUser,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: AnimatedHoverButton(
+                            label: 'Delete',
+                            icon: Icons.delete,
+                            onTap: (_selectedUserDocId != null &&
+                                    (_selectedUserName?.toLowerCase() !=
+                                        _protectedUser))
+                                ? _deleteUser
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       );
     }
-
     if (_showEditKiosk && !_showMenuManager) {
       return Scaffold(
         appBar: AppBar(
@@ -3008,24 +3012,29 @@ class _StaffScreenState extends State<StaffScreen> {
           ),
         ),
         backgroundColor: AppColors.cream200,
-        body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedHoverButton(
-                label: 'Menu',
-                icon: Icons.restaurant_menu,
-                onTap: _showMenuManagerScreen,
+        body: Stack(
+          children: [
+            const TiledIcons(),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedHoverButton(
+                    label: 'Menu',
+                    icon: Icons.restaurant_menu,
+                    onTap: _showMenuManagerScreen,
+                  ),
+                  const SizedBox(height: 16),
+                  AnimatedHoverButton(
+                    label: 'Reset order count',
+                    icon: Icons.refresh,
+                    onTap: _resetOrderCount,
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              AnimatedHoverButton(
-                label: 'Reset order count',
-                icon: Icons.refresh,
-                onTap: _resetOrderCount,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
@@ -3547,16 +3556,8 @@ class _HoverPieCardState extends State<_HoverPieCard> {
                 onDoubleTap: widget.onDoubleTap,
                 onLongPressStart: (_) => setState(() => _hovering = true),
                 onLongPressEnd: (_) {
-                  // Delay hiding the hover state to allow dialog to show
-                  Future.delayed(const Duration(milliseconds: 100), () {
-                    if (mounted) setState(() => _hovering = false);
-                  });
+                  if (mounted) setState(() => _hovering = false);
                 },
-                onLongPress: () {
-                  // Show dialog after a brief moment to ensure hover state is visible
-                  Future.delayed(
-                      const Duration(milliseconds: 50), _showInfoDialog);
-                }, // Show info on long press (dialog)
                 child: Tooltip(
                   message: widget.info ?? '',
                   child: Card(
