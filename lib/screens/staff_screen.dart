@@ -14,8 +14,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
-// Removed web-only dart:html import to keep Android/iOS builds working.
+import 'dart:async';
 
+// Removed web-only dart:html import to keep Android/iOS builds working.
 
 class StaffScreen extends StatefulWidget {
   const StaffScreen({super.key});
@@ -25,13 +26,16 @@ class StaffScreen extends StatefulWidget {
 }
 
 class _StaffScreenState extends State<StaffScreen> {
-
   bool _showEditKiosk = false;
   bool _showMenuManager = false;
+  bool _showScreensaverManager = false;
   List<Map<String, dynamic>> _menuCombos = [];
+  List<Map<String, dynamic>> _screensaverImages = [];
   int? _selectedComboIndex;
   String? _selectedComboDocId;
-  
+  int? _selectedScreensaverIndex;
+  String? _selectedScreensaverDocId;
+
   // Dummy user list for demonstration
   int? _selectedUserIndex;
   bool _showUserManager = false;
@@ -70,6 +74,12 @@ class _StaffScreenState extends State<StaffScreen> {
   double _todayTarget = 0.0;
 
   double? _defaultDailyTarget;
+
+  String _sanitizeUrl(dynamic raw) {
+    final s = (raw ?? '').toString().trim();
+    // Use a triple-quoted raw string so both " and ' can appear without escaping.
+    return s.replaceAll(RegExp(r'''^["']+|["']+$'''), '');
+  }
 
   final List<Color> _toppingColors = [
     AppColors.pink700,
@@ -115,8 +125,11 @@ class _StaffScreenState extends State<StaffScreen> {
     setState(() {
       _showEditKiosk = false;
       _showMenuManager = false;
+      _showScreensaverManager = false;
       _selectedComboIndex = null;
       _selectedComboDocId = null;
+      _selectedScreensaverIndex = null;
+      _selectedScreensaverDocId = null;
     });
   }
 
@@ -135,9 +148,23 @@ class _StaffScreenState extends State<StaffScreen> {
     });
   }
 
+  void _showScreensaverManagerScreen() {
+    setState(() {
+      _showScreensaverManager = true;
+    });
+    _loadScreensaverImages();
+  }
+
+  void _hideScreensaverManagerScreen() {
+    setState(() {
+      _showScreensaverManager = false;
+      _selectedScreensaverIndex = null;
+      _selectedScreensaverDocId = null;
+    });
+  }
+
   // ImgBB API key (free tier: 5000 uploads/month, no login required)
-  final String _imgbbApiKey =
-      '03519e78bf178a14f33e42235be3a963';
+  final String _imgbbApiKey = '03519e78bf178a14f33e42235be3a963';
 
 // Upload image to ImgBB and return direct URL
   // Upload image to ImgBB and return direct URL
@@ -179,7 +206,8 @@ class _StaffScreenState extends State<StaffScreen> {
           try {
             directUrl = data['image']?['url'] as String?; // direct content URL
           } catch (_) {}
-          directUrl ??= data['display_url'] as String?; // fallback to display url
+          directUrl ??=
+              data['display_url'] as String?; // fallback to display url
           directUrl ??= data['url'] as String?; // last resort: viewer page
 
           if (directUrl != null) {
@@ -199,7 +227,7 @@ class _StaffScreenState extends State<StaffScreen> {
       debugPrint('ImgBB upload error: $e');
       debugPrint('Stack trace: $stackTrace');
       return null;
-    }  
+    }
   }
 
   Future<void> _loadMenuCombos() async {
@@ -223,6 +251,523 @@ class _StaffScreenState extends State<StaffScreen> {
       });
     } catch (e) {
       debugPrint('Error loading menu combos: $e');
+    }
+  }
+
+  Future<void> _loadScreensaverImages() async {
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance.collection('screensaver').get();
+      setState(() {
+        _screensaverImages = snapshot.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'url': _sanitizeUrl(data['url'] ?? data['image']),
+            'name': (data['name'] as String?) ?? 'Unnamed',
+          };
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('Error loading screensaver images: $e');
+    }
+  }
+
+  Future<String?> _uploadImageWithProgress(
+    BuildContext context,
+    Uint8List imageBytes,
+    String fileName,
+  ) async {
+    bool cancelled = false;
+    bool dialogMounted = true; // Add this flag
+    double progress = 0.0;
+    int uploadedBytes = 0;
+    final totalBytes = imageBytes.length;
+
+    late void Function(void Function()) dialogSetState;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          dialogSetState = setDialogState;
+
+          return WillPopScope(
+            onWillPop: () async {
+              dialogMounted = false; // Mark as unmounted
+              return true;
+            },
+            child: AlertDialog(
+              title: const Text('Uploading Image'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: Colors.grey[300],
+                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.pink700),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Uploading (${(progress * 100).toStringAsFixed(0)}%)',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${(uploadedBytes / 1024 / 1024).toStringAsFixed(2)} MB / ${(totalBytes / 1024 / 1024).toStringAsFixed(2)} MB',
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    cancelled = true;
+                    dialogMounted = false;
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    ).then((_) {
+      dialogMounted = false; // Ensure flag is set when dialog closes
+    });
+
+    try {
+      debugPrint('Uploading image: $fileName (${imageBytes.length} bytes)');
+
+      if (_imgbbApiKey.isEmpty) {
+        debugPrint('ImgBB API key is empty!');
+        if (mounted && dialogMounted) Navigator.pop(context);
+        return null;
+      }
+
+      final base64Image = base64Encode(imageBytes);
+      final uri = Uri.parse('https://api.imgbb.com/1/upload?key=$_imgbbApiKey');
+
+      final request = http.MultipartRequest('POST', uri);
+      request.fields['image'] = base64Image;
+      request.fields['name'] = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+
+      bool uploadComplete = false;
+      final progressTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
+        if (cancelled || !mounted || !dialogMounted) {
+          timer.cancel();
+          return;
+        }
+
+        if (!uploadComplete && progress < 0.9) {
+          final increment = (0.9 - progress) * 0.15;
+          progress = (progress + increment).clamp(0.0, 0.9);
+          uploadedBytes = (totalBytes * progress).toInt();
+
+          if (dialogMounted) {
+            try {
+              dialogSetState(() {});
+            } catch (e) {
+              // Dialog was disposed, stop the timer
+              timer.cancel();
+              dialogMounted = false;
+            }
+          }
+        } else {
+          timer.cancel();
+        }
+      });
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      uploadComplete = true;
+      progressTimer.cancel();
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['success'] == true) {
+          progress = 1.0;
+          uploadedBytes = totalBytes;
+          
+          if (dialogMounted) {
+            try {
+              dialogSetState(() {});
+            } catch (e) {
+              debugPrint('Dialog already disposed');
+            }
+          }
+
+          await Future.delayed(const Duration(milliseconds: 300));
+
+          if (mounted && dialogMounted) Navigator.pop(context);
+
+          final data = json['data'];
+          String? directUrl = data['image']?['url'] as String?;
+          directUrl ??= data['display_url'] as String?;
+          directUrl ??= data['url'] as String?;
+
+          if (directUrl != null) {
+            debugPrint('Upload successful! Direct URL: $directUrl');
+            return directUrl;
+          }
+        }
+        debugPrint('ImgBB error: ${json['error']}');
+      }
+
+      if (mounted && dialogMounted) Navigator.pop(context);
+      return null;
+    } catch (e, stackTrace) {
+      debugPrint('ImgBB upload error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      if (mounted && dialogMounted) {
+        try {
+          Navigator.pop(context);
+        } catch (_) {}
+      }
+      return null;
+    }
+  }
+
+  
+  Future<void> _addScreensaverImage() async {
+    final snapshot =
+        await FirebaseFirestore.instance.collection('screensaver').get();
+    final nextNumber = snapshot.docs.length + 1;
+    final autoName = 'Image $nextNumber';
+
+    String? uploadedUrl;
+    Uint8List? imagePreviewBytes;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Screensaver Image'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: TextEditingController(text: autoName),
+                  enabled: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Image Name',
+                    hintText: 'Auto-generated',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final fileResult = await FilePicker.platform.pickFiles(
+                      withData: true,
+                      type: FileType.image,
+                    );
+                    if (fileResult != null && fileResult.files.isNotEmpty) {
+                      final file = fileResult.files.first;
+                      final bytes = file.bytes;
+                      if (bytes != null) {
+                        setDialogState(() => imagePreviewBytes = bytes);
+
+                        // Use the new progress upload method
+                        uploadedUrl = await _uploadImageWithProgress(
+                          context,
+                          bytes,
+                          file.name,
+                        );
+
+                        if (uploadedUrl == null) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Upload cancelled or failed.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        } else {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Image uploaded successfully!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        }
+                        setDialogState(() {});
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.upload),
+                  label: const Text('Upload image'),
+                ),
+                const SizedBox(height: 12),
+                if (imagePreviewBytes != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      imagePreviewBytes!,
+                      height: 120,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (uploadedUrl == null || uploadedUrl!.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Please upload an image first')),
+                  );
+                  return;
+                }
+                Navigator.pop(context, uploadedUrl);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      final cleanUrl = _sanitizeUrl(result);
+      await FirebaseFirestore.instance.collection('screensaver').add({
+        'name': autoName,
+        'url': cleanUrl,
+        'image': cleanUrl,
+      });
+      await _loadScreensaverImages();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Screensaver image added successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _updateScreensaverImage() async {
+    if (_selectedScreensaverIndex == null) return;
+
+    final Map<String, dynamic> current = Map<String, dynamic>.from(
+        _screensaverImages[_selectedScreensaverIndex!]);
+
+    final String? docId =
+        _selectedScreensaverDocId ?? (current['id'] as String?);
+    if (docId == null || docId.isEmpty) return;
+
+    final String currentName = (current['name'] ?? 'Unnamed').toString();
+    final String currentUrl = (current['url'] ?? '').toString();
+
+    String? newUploadedUrl;
+    Uint8List? imagePreviewBytes;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit Screensaver Image'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Display current name (read-only)
+                TextField(
+                  controller: TextEditingController(text: currentName),
+                  enabled: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Image Name',
+                    hintText: 'Auto-generated',
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Current image preview
+                if (imagePreviewBytes == null && currentUrl.isNotEmpty)
+                  Column(
+                    children: [
+                      const Text('Current Image:',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          currentUrl,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.broken_image, size: 60),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
+
+                // Upload button to replace image
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final fileResult = await FilePicker.platform
+                        .pickFiles(withData: true, type: FileType.image);
+                    if (fileResult != null && fileResult.files.isNotEmpty) {
+                      final file = fileResult.files.first;
+                      final bytes = file.bytes;
+                      if (bytes != null) {
+                        setDialogState(() => imagePreviewBytes = bytes);
+
+                        // Use the progress upload method instead
+                        newUploadedUrl = await _uploadImageWithProgress(
+                          context,
+                          bytes,
+                          file.name,
+                        );
+
+                        if (newUploadedUrl == null) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Upload cancelled or failed. Keeping old image.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        } else {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('New image uploaded!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        }
+                        setDialogState(() {});
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.upload),
+                  label: const Text('Replace image'),
+                ),
+                const SizedBox(height: 12),
+
+                // New image preview
+                if (imagePreviewBytes != null)
+                  Column(
+                    children: [
+                      const Text('New Image:',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(
+                          imagePreviewBytes!,
+                          height: 120,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Use new URL if uploaded, otherwise keep current
+                final finalUrl = newUploadedUrl ?? currentUrl;
+                if (finalUrl.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('No image available')),
+                  );
+                  return;
+                }
+                Navigator.pop(context, finalUrl);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      final cleanUrl = _sanitizeUrl(result);
+      await FirebaseFirestore.instance
+          .collection('screensaver')
+          .doc(docId)
+          .update({
+        'name': currentName, // Keep the same name
+        'url': cleanUrl,
+        'image': cleanUrl,
+      });
+      await _loadScreensaverImages();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Screensaver image updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteScreensaverImage() async {
+    if (_selectedScreensaverIndex == null) return;
+
+    final Map<String, dynamic> current = Map<String, dynamic>.from(
+        _screensaverImages[_selectedScreensaverIndex!]);
+    final String? docId =
+        _selectedScreensaverDocId ?? (current['id'] as String?);
+    if (docId == null || docId.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Screensaver Image'),
+        content: const Text('Are you sure you want to delete this image?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await FirebaseFirestore.instance
+          .collection('screensaver')
+          .doc(docId)
+          .delete();
+      setState(() {
+        _selectedScreensaverIndex = null;
+        _selectedScreensaverDocId = null;
+      });
+      await _loadScreensaverImages();
     }
   }
 
@@ -301,6 +846,7 @@ class _StaffScreenState extends State<StaffScreen> {
 
     String? selectedImageUrl = combo['image'];
     Uint8List? imagePreviewBytes;
+    String? newUploadedUrl;
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -336,7 +882,7 @@ class _StaffScreenState extends State<StaffScreen> {
                         style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
 
-                    // Preview
+                    // Preview current or new image
                     if (imagePreviewBytes != null)
                       Container(
                         height: 120,
@@ -351,7 +897,8 @@ class _StaffScreenState extends State<StaffScreen> {
                               fit: BoxFit.cover),
                         ),
                       )
-                    else if (selectedImageUrl != null)
+                    else if (selectedImageUrl != null &&
+                        selectedImageUrl!.isNotEmpty) 
                       Container(
                         height: 120,
                         width: double.infinity,
@@ -361,14 +908,21 @@ class _StaffScreenState extends State<StaffScreen> {
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.network(selectedImageUrl,
-                              fit: BoxFit.cover),
+                          child: selectedImageUrl!
+                                  .startsWith('http') 
+                              ? Image.network(
+                                  selectedImageUrl!, 
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const Icon(Icons.broken_image, size: 60))
+                              : const Icon(Icons.cake,
+                                  size: 60, color: AppColors.salmon400),
                         ),
-                      ), 
+                      ),
 
                     const SizedBox(height: 8),
 
-                    // Upload button (cross-platform via file_picker)
+                    // Upload button with progress
                     ElevatedButton.icon(
                       icon: const Icon(Icons.upload_file),
                       label: const Text('Choose Image'),
@@ -377,7 +931,7 @@ class _StaffScreenState extends State<StaffScreen> {
                           final result = await FilePicker.platform.pickFiles(
                             type: FileType.image,
                             allowMultiple: false,
-                            withData: true, // ensures bytes are available on web/mobile
+                            withData: true,
                           );
 
                           if (result != null && result.files.isNotEmpty) {
@@ -389,29 +943,58 @@ class _StaffScreenState extends State<StaffScreen> {
                                 imagePreviewBytes = Uint8List.fromList(bytes);
                               });
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Image selected: ${file.name ?? 'image'}'),
-                                  backgroundColor: Colors.green,
-                                ),
+                              // Use progress upload method
+                              newUploadedUrl = await _uploadImageWithProgress(
+                                context,
+                                bytes,
+                                '${nameController.text.trim().replaceAll(' ', '_')}.png',
                               );
+
+                              if (newUploadedUrl == null) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Upload cancelled or failed. Keeping old image.'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              } else {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content:
+                                          Text('Image uploaded successfully!'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                                setDialogState(() {
+                                  selectedImageUrl = newUploadedUrl;
+                                });
+                              }
                             } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Could not read file bytes.'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Could not read file bytes.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
                             }
                           }
                         } catch (e) {
                           debugPrint('File selection error: $e');
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
                         }
                       },
                     ),
@@ -426,38 +1009,22 @@ class _StaffScreenState extends State<StaffScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () async {
+              onPressed: () {
                 final name = nameController.text.trim();
                 final description = descriptionController.text.trim();
                 final price =
                     double.tryParse(priceController.text.trim()) ?? 0.0;
 
-                if (name.isEmpty) return;
-
-                // Upload new image if selected
-                String? finalImageUrl = selectedImageUrl;
-                if (imagePreviewBytes != null) {
-                  // Show uploading indicator
+                if (name.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Uploading image...')),
+                    const SnackBar(content: Text('Please enter a name')),
                   );
-
-                  finalImageUrl = await _uploadImageToImgBB(
-                    imagePreviewBytes!,
-                    '${name.replaceAll(' ', '_')}.png',
-                  );
-
-                  if (finalImageUrl == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content:
-                            Text('Image upload failed. Keeping old image.'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    finalImageUrl = combo['image']; // Fallback to old image
-                  }
+                  return;
                 }
+
+                // Use new uploaded URL if available, otherwise keep current
+                final finalImageUrl =
+                    newUploadedUrl ?? selectedImageUrl ?? combo['image'];
 
                 Navigator.pop(context, {
                   'name': name,
@@ -480,12 +1047,14 @@ class _StaffScreenState extends State<StaffScreen> {
           .update(result);
       await _loadMenuCombos();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cake combo updated successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cake combo updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     }
   }
 
@@ -1364,7 +1933,7 @@ class _StaffScreenState extends State<StaffScreen> {
 
   void _showAboutScreen() {
     const appName = 'In Bento Cake Kiosk';
-    const fullVersion = '6.0.2';
+    const fullVersion = '6.0.3';
     final displayVersion = fullVersion.split('+').first;
     const repoUrl = 'https://github.com/Ndkorr/in-bento-cake-kiosk';
     const supportEmail = 'mathewastorga321@gmail.com';
@@ -1389,8 +1958,8 @@ class _StaffScreenState extends State<StaffScreen> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 900),
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 28, horizontal: 24),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(18),
@@ -1402,190 +1971,197 @@ class _StaffScreenState extends State<StaffScreen> {
                           ),
                         ],
                       ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Inbento icon (use asset, fallback to text box)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: SizedBox(
-                          width: 96,
-                          height: 96,
-                          child: Image.asset(
-                            'assets/icons/icon.png',
-                            fit: BoxFit.contain,
-                            errorBuilder: (ctx, err, st) => Container(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Inbento icon (use asset, fallback to text box)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: SizedBox(
                               width: 96,
                               height: 96,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                border:
-                                    Border.all(color: Colors.black, width: 2),
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  'Inbento\nIcon',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-                      Text(appName,
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      Text('Version $displayVersion',
-                          style: const TextStyle(fontSize: 14)),
-                      const SizedBox(height: 20),
-
-                      const SizedBox(height: 22),
-                      const Text(
-                        'A kiosk that allows customers to create, or "invent", their own unique cake/s.',
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      const Text('Built with Flutter and Firebase.',
-                          textAlign: TextAlign.center),
-
-                      const SizedBox(height: 28),
-
-                      // Licenses & Agreement button (matching Contact Support style)
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side:
-                                BorderSide(color: AppColors.pink700, width: 2),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                            backgroundColor: Colors.white,
-                          ),
-                          onPressed: () {
-                            showLicensePage(
-                              context: context,
-                              applicationName: appName,
-                              applicationVersion: displayVersion,
-                            );
-                          },
-                          child: const Text(
-                            'Licenses & Agreement',
-                            style: TextStyle(fontSize: 16, color: Colors.black),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Contact Support button
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side:
-                                BorderSide(color: AppColors.pink700, width: 2),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                          ),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Contact Support'),
-                                content: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Email: $supportEmail'),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                        'For urgent help, call your support line.'),
-                                  ],
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Clipboard.setData(const ClipboardData(
-                                          text: supportEmail));
-                                      Navigator.pop(context);
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                            content: Text(
-                                                'Email copied to clipboard')),
-                                      );
-                                    },
-                                    child: const Text('Copy Email'),
+                              child: Image.asset(
+                                'assets/icons/icon.png',
+                                fit: BoxFit.contain,
+                                errorBuilder: (ctx, err, st) => Container(
+                                  width: 96,
+                                  height: 96,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                        color: Colors.black, width: 2),
                                   ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Close'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Contact Support',
-                            style: TextStyle(fontSize: 16, color: Colors.black),
-                          ),
-                        ),
-                      ),
-
-                      Center(
-                        child: Container(
-                          margin: const EdgeInsets.only(
-                              top: 70.0,
-                              bottom: 2.0), // <-- vertical spacing here
-                          child: InkWell(
-                            onTap: () async {
-                              final uri = Uri.parse(repoUrl);
-                              final opened = await launchUrl(uri,
-                                  mode: LaunchMode.externalApplication);
-                              if (!opened) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'Could not open repository URL')),
-                                );
-                              }
-                            },
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(
-                                      6.0), // small padding around icon
-                                  child: SvgPicture.asset(
-                                    'assets/icons/github.svg',
-                                    width: 40,
-                                    height: 40,
-                                    placeholderBuilder: (context) =>
-                                        const SizedBox(
-                                      width: 40,
-                                      height: 40,
-                                      child: Center(
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2)),
+                                  child: const Center(
+                                    child: Text(
+                                      'Inbento\nIcon',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(
-                                    height: 4), // space between icon and label
-                                const Text('Docs',
-                                    style: TextStyle(fontSize: 12)),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    ],
+
+                          const SizedBox(height: 16),
+                          Text(appName,
+                              style: const TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 6),
+                          Text('Version $displayVersion',
+                              style: const TextStyle(fontSize: 14)),
+                          const SizedBox(height: 20),
+
+                          const SizedBox(height: 22),
+                          const Text(
+                            'A kiosk that allows customers to create, or "invent", their own unique cake/s.',
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('Built with Flutter and Firebase.',
+                              textAlign: TextAlign.center),
+
+                          const SizedBox(height: 28),
+
+                          // Licenses & Agreement button (matching Contact Support style)
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                side: BorderSide(
+                                    color: AppColors.pink700, width: 2),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16)),
+                                backgroundColor: Colors.white,
+                              ),
+                              onPressed: () {
+                                showLicensePage(
+                                  context: context,
+                                  applicationName: appName,
+                                  applicationVersion: displayVersion,
+                                );
+                              },
+                              child: const Text(
+                                'Licenses & Agreement',
+                                style: TextStyle(
+                                    fontSize: 16, color: Colors.black),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Contact Support button
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                side: BorderSide(
+                                    color: AppColors.pink700, width: 2),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16)),
+                              ),
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Contact Support'),
+                                    content: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Email: $supportEmail'),
+                                        const SizedBox(height: 8),
+                                        const Text(
+                                            'For urgent help, call your support line.'),
+                                      ],
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Clipboard.setData(const ClipboardData(
+                                              text: supportEmail));
+                                          Navigator.pop(context);
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                                content: Text(
+                                                    'Email copied to clipboard')),
+                                          );
+                                        },
+                                        child: const Text('Copy Email'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Close'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                'Contact Support',
+                                style: TextStyle(
+                                    fontSize: 16, color: Colors.black),
+                              ),
+                            ),
+                          ),
+
+                          Center(
+                            child: Container(
+                              margin: const EdgeInsets.only(
+                                  top: 70.0,
+                                  bottom: 2.0), // <-- vertical spacing here
+                              child: InkWell(
+                                onTap: () async {
+                                  final uri = Uri.parse(repoUrl);
+                                  final opened = await launchUrl(uri,
+                                      mode: LaunchMode.externalApplication);
+                                  if (!opened) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Could not open repository URL')),
+                                    );
+                                  }
+                                },
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(
+                                          6.0), // small padding around icon
+                                      child: SvgPicture.asset(
+                                        'assets/icons/github.svg',
+                                        width: 40,
+                                        height: 40,
+                                        placeholderBuilder: (context) =>
+                                            const SizedBox(
+                                          width: 40,
+                                          height: 40,
+                                          child: Center(
+                                              child: CircularProgressIndicator(
+                                                  strokeWidth: 2)),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(
+                                        height:
+                                            4), // space between icon and label
+                                    const Text('Docs',
+                                        style: TextStyle(fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -2535,7 +3111,7 @@ class _StaffScreenState extends State<StaffScreen> {
                                 maxX: _toppingsLabels.isNotEmpty
                                     ? (_toppingsLabels.length - 1).toDouble()
                                     : 4,
-                                minY: 0, 
+                                minY: 0,
                                 maxY: maxY + 1,
                                 lineBarsData:
                                     List.generate(_topToppings.length, (i) {
@@ -2998,7 +3574,7 @@ class _StaffScreenState extends State<StaffScreen> {
         ),
       );
     }
-    if (_showEditKiosk && !_showMenuManager) {
+    if (_showEditKiosk && !_showMenuManager && !_showScreensaverManager) {
       return Scaffold(
         appBar: AppBar(
           backgroundColor: AppColors.cream200,
@@ -3024,6 +3600,12 @@ class _StaffScreenState extends State<StaffScreen> {
                     label: 'Menu',
                     icon: Icons.restaurant_menu,
                     onTap: _showMenuManagerScreen,
+                  ),
+                  const SizedBox(height: 16),
+                  AnimatedHoverButton(
+                    label: 'Screensaver',
+                    icon: Icons.image,
+                    onTap: _showScreensaverManagerScreen,
                   ),
                   const SizedBox(height: 16),
                   AnimatedHoverButton(
@@ -3197,6 +3779,270 @@ class _StaffScreenState extends State<StaffScreen> {
       );
     }
 
+    if (_showScreensaverManager) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppColors.cream200,
+          elevation: 0,
+          title: const Text('Screensaver Manager',
+              style: TextStyle(color: Colors.black)),
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: _hideScreensaverManagerScreen,
+          ),
+        ),
+        backgroundColor: AppColors.cream200,
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _addScreensaverImage,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.pink700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  if (_selectedScreensaverIndex != null)
+                    ElevatedButton.icon(
+                      onPressed: _updateScreensaverImage,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.pink700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 12),
+                  if (_selectedScreensaverIndex != null)
+                    ElevatedButton.icon(
+                      onPressed: _deleteScreensaverImage,
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Delete'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('screensaver')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline,
+                                size: 48, color: Colors.red),
+                            const SizedBox(height: 8),
+                            Text('Error: ${snapshot.error}'),
+                          ],
+                        ),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final items = snapshot.data!.docs.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final rawUrl = data['url'] ?? data['image'] ?? '';
+                      return {
+                        'id': doc.id,
+                        'url': _sanitizeUrl(rawUrl),
+                        'name': (data['name'] as String?) ?? 'Unnamed',
+                      };
+                    }).toList();
+
+                    items.sort((a, b) =>
+                        (a['name'] as String).compareTo(b['name'] as String));
+
+                    // Keep local copy for edit/delete handlers
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        setState(() {
+                          _screensaverImages = items;
+                          if (_selectedScreensaverIndex != null) {
+                            if (_selectedScreensaverIndex! >= items.length) {
+                              _selectedScreensaverIndex = null;
+                              _selectedScreensaverDocId = null;
+                            }
+                          }
+                        });
+                      }
+                    });
+
+                    if (items.isEmpty) {
+                      return const Center(
+                        child: Text('No screensaver images.',
+                            style: TextStyle(fontSize: 16, color: Colors.grey)),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final img = Map<String, dynamic>.from(items[index]);
+                        final isSelected = _selectedScreensaverIndex == index;
+
+                        final String id = (img['id'] as String?) ?? '';
+                        final String url = (img['url'] as String?) ?? '';
+                        final String name =
+                            (img['name'] as String?) ?? 'Unnamed';
+
+                        // Extract number from name (e.g., "Image 1" -> 1)
+                        final numberMatch = RegExp(r'\d+').firstMatch(name);
+                        final number =
+                            numberMatch != null ? numberMatch.group(0) : '?';
+                        final subtitle = 'Promotional Image $number';
+
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedScreensaverIndex = index;
+                              _selectedScreensaverDocId =
+                                  id.isNotEmpty ? id : null;
+                            });
+                          },
+                          onDoubleTap: _updateScreensaverImage,
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.pink700
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withAlpha(15),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                // Image thumbnail
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.cream200,
+                                        AppColors.peach300.withAlpha(77),
+                                      ],
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: url.startsWith('http')
+                                        ? Image.network(
+                                            url,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(
+                                              Icons.image_not_supported,
+                                              color: AppColors.salmon400,
+                                              size: 32,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.image,
+                                            color: AppColors.salmon400,
+                                            size: 32,
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                // Name and subtitle
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w900,
+                                          fontStyle: FontStyle.italic,
+                                          color: AppColors.pink700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        subtitle,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Selection indicator
+                                if (isSelected)
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: AppColors.pink700,
+                                    size: 28,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.cream200,
       appBar: AppBar(
@@ -3256,122 +4102,130 @@ class _StaffScreenState extends State<StaffScreen> {
   }
 
   Widget _buildTodaySalesPieLive() {
-  final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-  return StreamBuilder<QuerySnapshot>(
-    stream: FirebaseFirestore.instance
-        .collection('orders')
-        .where('date', isGreaterThanOrEqualTo: todayStr)
-        .snapshots(),
-    builder: (context, orderSnapshot) {
-      if (!orderSnapshot.hasData) {
-        return _shimmerPieCard();
-      }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('date', isGreaterThanOrEqualTo: todayStr)
+          .snapshots(),
+      builder: (context, orderSnapshot) {
+        if (!orderSnapshot.hasData) {
+          return _shimmerPieCard();
+        }
 
-      final computeFuture = _computeSalesFromDocs(orderSnapshot.data!.docs);
+        final computeFuture = _computeSalesFromDocs(orderSnapshot.data!.docs);
 
-      return FutureBuilder<double>(
-        future: computeFuture,
-        builder: (context, salesSnapshot) {
-          if (!salesSnapshot.hasData) {
-            return _shimmerPieCard();
-          }
-          final sales = salesSnapshot.data ?? 0.0;
+        return FutureBuilder<double>(
+          future: computeFuture,
+          builder: (context, salesSnapshot) {
+            if (!salesSnapshot.hasData) {
+              return _shimmerPieCard();
+            }
+            final sales = salesSnapshot.data ?? 0.0;
 
-          return StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('settings')
-                .doc('targetSales')
-                .collection('periods')
-                .doc(todayStr)
-                .snapshots(),
-            builder: (context, targetSnapshot) {
-              // Prefer an explicit period document value; otherwise fall back to the cached defaultDaily value
-              double target = 0.0;
-              if (targetSnapshot.hasData &&
-                  targetSnapshot.data!.exists &&
-                  targetSnapshot.data!.data() != null) {
-                final data = targetSnapshot.data!.data() as Map<String, dynamic>;
-                target = (data['value'] as num?)?.toDouble() ?? (_defaultDailyTarget ?? 0.0);
-              } else {
-                // No per-day doc: use the in-memory default if available
-                target = _defaultDailyTarget ?? 0.0;
-              }
-              
-              // Don't clamp values - allow sales to exceed target
-              final achieved = target > 0 ? sales : 0.0;
-              final remaining = target > 0 ? (target - sales).clamp(0, double.infinity) : 0.0;
-              final percent = target > 0 ? (sales / target * 100) : 0.0;
+            return StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('settings')
+                  .doc('targetSales')
+                  .collection('periods')
+                  .doc(todayStr)
+                  .snapshots(),
+              builder: (context, targetSnapshot) {
+                // Prefer an explicit period document value; otherwise fall back to the cached defaultDaily value
+                double target = 0.0;
+                if (targetSnapshot.hasData &&
+                    targetSnapshot.data!.exists &&
+                    targetSnapshot.data!.data() != null) {
+                  final data =
+                      targetSnapshot.data!.data() as Map<String, dynamic>;
+                  target = (data['value'] as num?)?.toDouble() ??
+                      (_defaultDailyTarget ?? 0.0);
+                } else {
+                  // No per-day doc: use the in-memory default if available
+                  target = _defaultDailyTarget ?? 0.0;
+                }
 
-              final List<PieChartSectionData> sections;
-              String info;
-              if (target <= 0 && sales <= 0) {
-                sections = [
-                  PieChartSectionData(
-                    color: Colors.grey.shade300,
-                    value: 1.0,
-                    title: '',
-                    radius: 48,
+                // Don't clamp values - allow sales to exceed target
+                final achieved = target > 0 ? sales : 0.0;
+                final remaining = target > 0
+                    ? (target - sales).clamp(0, double.infinity)
+                    : 0.0;
+                final percent = target > 0 ? (sales / target * 100) : 0.0;
+
+                final List<PieChartSectionData> sections;
+                String info;
+                if (target <= 0 && sales <= 0) {
+                  sections = [
+                    PieChartSectionData(
+                      color: Colors.grey.shade300,
+                      value: 1.0,
+                      title: '',
+                      radius: 48,
+                    ),
+                  ];
+                  info = 'No sales yet for today';
+                } else if (sales >= target && target > 0) {
+                  // Sales exceeded target - show 100% (or more) in achieved section
+                  sections = [
+                    PieChartSectionData(
+                      color: AppColors.pink500,
+                      value: 1.0,
+                      title: '${percent.toStringAsFixed(0)}%',
+                      radius: 48,
+                      titleStyle: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ];
+                  info = 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
+                      'Target: ₱${target.toStringAsFixed(2)}\n'
+                      'Achieved: ${percent.toStringAsFixed(1)}%';
+                } else {
+                  sections = [
+                    PieChartSectionData(
+                      color: AppColors.pink500,
+                      value: achieved.toDouble(),
+                      title: '${percent.toStringAsFixed(0)}%',
+                      radius: 48,
+                      titleStyle: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    PieChartSectionData(
+                      color: AppColors.salmon400,
+                      value: remaining.toDouble(),
+                      title: '',
+                      radius: 48,
+                    ),
+                  ];
+                  info = 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
+                      'Target: ₱${target.toStringAsFixed(2)}\n'
+                      'Achieved: ${percent.toStringAsFixed(1)}%';
+                }
+
+                return _HoverPieCard(
+                  title: 'Total Sales',
+                  pie: PieChart(
+                    PieChartData(
+                      sections: sections,
+                      centerSpaceRadius: 24,
+                      sectionsSpace: 2,
+                      borderData: FlBorderData(show: false),
+                    ),
                   ),
-                ];
-                info = 'No sales yet for today';
-              } else if (sales >= target && target > 0) {
-                // Sales exceeded target - show 100% (or more) in achieved section
-                sections = [
-                  PieChartSectionData(
-                    color: AppColors.pink500,
-                    value: 1.0,
-                    title: '${percent.toStringAsFixed(0)}%',
-                    radius: 48,
-                    titleStyle: const TextStyle(
-                        fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                ];
-                info = 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
-                    'Target: ₱${target.toStringAsFixed(2)}\n'
-                    'Achieved: ${percent.toStringAsFixed(1)}%';
-              } else {
-                sections = [
-                  PieChartSectionData(
-                    color: AppColors.pink500,
-                    value: achieved.toDouble(),
-                    title: '${percent.toStringAsFixed(0)}%',
-                    radius: 48,
-                    titleStyle: const TextStyle(
-                        fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                  PieChartSectionData(
-                    color: AppColors.salmon400,
-                    value: remaining.toDouble(),
-                    title: '',
-                    radius: 48,
-                  ),
-                ];
-                info = 'Today\'s sales: ₱${sales.toStringAsFixed(2)}\n'
-                    'Target: ₱${target.toStringAsFixed(2)}\n'
-                    'Achieved: ${percent.toStringAsFixed(1)}%';
-              }
-
-              return _HoverPieCard(
-                title: 'Total Sales',
-                pie: PieChart(
-                  PieChartData(
-                    sections: sections,
-                    centerSpaceRadius: 24,
-                    sectionsSpace: 2,
-                    borderData: FlBorderData(show: false),
-                  ),
-                ),
-                onDoubleTap: _showSalesDetailsScreen,
-                info: info,
-              );
-            },
-          );
-        },
-      );
-    },
-  );
-}
+                  onDoubleTap: _showSalesDetailsScreen,
+                  info: info,
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildToppingsUsedPieLive() {
     return StreamBuilder<QuerySnapshot>(

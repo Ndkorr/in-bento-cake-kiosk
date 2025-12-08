@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_colors.dart';
 import 'welcome_screen.dart';
 
@@ -21,11 +22,9 @@ class _ScreensaverScreenState extends State<ScreensaverScreen> with SingleTicker
   late Animation<Offset> _nextOffset;
   bool _isAnimating = false;
 
-  final List<String> _images = [
-    'assets/images/cake_promo_1.png',
-    'assets/images/cake_promo_2.png',
-    'assets/images/cake_promo_3.png',
-  ];
+  // Loaded dynamically from Firestore collection `screensaver` (fields: image, name)
+  List<String> _images = [];
+  StreamSubscription<QuerySnapshot>? _screensaverSub;
 
   @override
   void initState() {
@@ -46,20 +45,52 @@ class _ScreensaverScreenState extends State<ScreensaverScreen> with SingleTicker
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
+    // Subscribe to Firestore updates once
+    _subscribeScreensaverImages();
+
+    // Advance images on a timer
     _imageTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (mounted && !_isAnimating) {
+      if (mounted && !_isAnimating && _images.isNotEmpty) {
         _startTransition();
       }
     });
   }
 
+  void _subscribeScreensaverImages() {
+    _screensaverSub?.cancel();
+    _screensaverSub = FirebaseFirestore.instance
+        .collection('screensaver')
+        .snapshots()
+        .listen((snapshot) {
+      final urls = <String>[];
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final url = (data['image'] ?? '').toString();
+        if (url.isNotEmpty) urls.add(url);
+      }
+      if (!mounted) return;
+      setState(() {
+        _images = urls;
+        if (_images.isEmpty) {
+          _currentImageIndex = 0;
+          _previousImageIndex = 0;
+        } else {
+          _currentImageIndex = _currentImageIndex % _images.length;
+          _previousImageIndex = _previousImageIndex % _images.length;
+        }
+      });
+    });
+  }
+
   void _startTransition() {
+    if (_images.isEmpty) return;
     setState(() {
       _isAnimating = true;
       _previousImageIndex = _currentImageIndex;
       _currentImageIndex = (_currentImageIndex + 1) % _images.length;
     });
-    _controller.forward(from: 0).then((_) {
+    _controller.forward(from: 0).whenComplete(() {
+      if (!mounted) return;
       setState(() {
         _isAnimating = false;
       });
@@ -69,12 +100,27 @@ class _ScreensaverScreenState extends State<ScreensaverScreen> with SingleTicker
   @override
   void dispose() {
     _imageTimer?.cancel();
+    _screensaverSub?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   void _exitScreensaver() {
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  Widget _buildNetworkImage(String url) {
+    return Center(
+      child: Image.network(
+        url,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(
+          Icons.broken_image,
+          size: 80,
+          color: AppColors.pink500,
+        ),
+      ),
+    );
   }
 
   @override
@@ -105,41 +151,28 @@ class _ScreensaverScreenState extends State<ScreensaverScreen> with SingleTicker
                         child: AnimatedBuilder(
                           animation: _controller,
                           builder: (context, child) {
+                            if (_images.isEmpty) {
+                              return Center(
+                                child: Text(
+                                  'No screensaver images configured',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(color: AppColors.pink700),
+                                ),
+                              );
+                            }
                             return Stack(
                               children: [
                                 // Previous image slides out to the left
                                 SlideTransition(
                                   position: _currentOffset,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      image: DecorationImage(
-                                        image: AssetImage(_images[_previousImageIndex]),
-                                        fit: BoxFit.contain,
-                                        onError: (exception, stackTrace) {
-                                          debugPrint(
-                                            'Error loading image: ${_images[_previousImageIndex]}',
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ),
+                                  child: _buildNetworkImage(_images[_previousImageIndex]),
                                 ),
                                 // Next image slides in from the right
                                 SlideTransition(
                                   position: _nextOffset,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      image: DecorationImage(
-                                        image: AssetImage(_images[_currentImageIndex]),
-                                        fit: BoxFit.contain,
-                                        onError: (exception, stackTrace) {
-                                          debugPrint(
-                                            'Error loading image: ${_images[_currentImageIndex]}',
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ),
+                                  child: _buildNetworkImage(_images[_currentImageIndex]),
                                 ),
                               ],
                             );
@@ -158,14 +191,13 @@ class _ScreensaverScreenState extends State<ScreensaverScreen> with SingleTicker
               child: Container(
                 width: 120,
                 height: 120,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
                       blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      offset: Offset(0, 2),
                     ),
                   ],
                 ),
