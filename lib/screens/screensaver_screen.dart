@@ -262,7 +262,7 @@ class _PulsatingIconBackgroundState extends State<_PulsatingIconBackground>
             child: Opacity(
               opacity: 0.8,
               child: Image.asset(
-                'assets/icons/icon-original.png',
+                'assets/icons/icon-original.png', 
                 fit: BoxFit.cover,
               ),
             ),
