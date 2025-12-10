@@ -26,14 +26,16 @@ In Bento Cake Kiosk is a thesis project that revolutionizes the cake ordering ex
 
 ### System Architecture
 <p align="center">
-  <img src="Readme/kiosk_flowchart.png" alt="System Flowchart" width="600"/>
+  <img src="Readme/kiosk flowchart.png" alt="Kiosk Flowchart" width="600"/>
+  <br/>
+  <em>Kiosk Flowchart</em>
 </p>
 
 ### UI Designs
-📄 [Font/Color etc (PDF)](Readme/inbento-cake-kiosk-icons.pdf)
+📄 [Icons (PDF)](Readme/inbento-cake-kiosk-icons.pdf)
 📄 [Font/Color etc (PDF)](Readme/inbento-cake-kiosk-screens.pdf)
 📄 [Log Documentation System](Readme/lds.pdf)
-📄 [Log Documentation System](https://github.com/Ndkorr/log-documentation-system.git)
+📄 [LDS Repo](https://github.com/Ndkorr/log-documentation-system.git)
 
 <p align="center">
   <img src="Readme/ui.png" alt="UI Designs" width="600"/>
@@ -98,7 +100,7 @@ In Bento Cake Kiosk is a thesis project that revolutionizes the cake ordering ex
 
 1. Clone the repository:
    ```bash
-   git clone [repository-url]
+   git clone [https://github.com/Ndkorr/in-bento-cake-kiosk.git]
    ```
 
 2. Navigate to the project directory:
