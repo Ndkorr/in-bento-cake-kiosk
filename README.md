@@ -22,8 +22,6 @@ In Bento Cake Kiosk is a thesis project that revolutionizes the cake ordering ex
 
 ## Screenshots
 
-## Screenshots
-
 ### System Architecture
 <p align="center">
   <img src="Readme/kiosk flowchart.png" alt="Kiosk Flowchart" width="600"/>
@@ -32,10 +30,10 @@ In Bento Cake Kiosk is a thesis project that revolutionizes the cake ordering ex
 </p>
 
 ### UI Designs
-📄 [Icons (PDF)](Readme/inbento-cake-kiosk-icons.pdf)
-📄 [Font/Color etc (PDF)](Readme/inbento-cake-kiosk-screens.pdf)
-📄 [Log Documentation System](Readme/lds.pdf)
-📄 [LDS Repo](https://github.com/Ndkorr/log-documentation-system.git)
+📄 **[Icons (PDF)](Readme/inbento-cake-kiosk-icons.pdf)**
+📄 **[Font/Color etc (PDF)](Readme/inbento-cake-kiosk-screens.pdf)**
+📄 **[Log Documentation System](Readme/lds.pdf)**
+📄 **[LDS Repo](https://github.com/Ndkorr/log-documentation-system.git)**
 
 <p align="center">
   <img src="Readme/ui.png" alt="UI Designs" width="600"/>
@@ -195,12 +193,19 @@ flutter build web --release
 
 ## License
 
-Specify your license here.
+This is an academic thesis project. All rights reserved © 2025 mathewsa.
 
-## Contact
-
-Your contact information or support channels.
+This software is provided for educational and demonstration purposes only. Commercial use, modification, or distribution requires explicit permission from the author.
 
 ## Acknowledgments
+Special thanks to everyone who contributed to this project:
+- **Group 2 | Bachelor of Science in Business Administration Major in Marketing Management | PUP | 2025**
+- **[@Berry-san12](https://github.com/Berry-san12)** - for helping to design ui
 
-Credit any resources, libraries, or individuals who helped.
+
+### Tools Used
+- **Tinkercad** - 3D model creation
+- **Draw.io** - System flowchart design
+- **Canva** - UI/Image design
+- **MS Paint** - UI mockups
+- **LDS** - [Log Documentation System](https://github.com/Ndkorr/log-documentation-system.git)
