@@ -22,7 +22,65 @@ In Bento Cake Kiosk is a thesis project that revolutionizes the cake ordering ex
 
 ## Screenshots
 
-Include screenshots of your app here.
+## Screenshots
+
+### System Architecture
+<p align="center">
+  <img src="Readme/kiosk_flowchart.png" alt="System Flowchart" width="600"/>
+</p>
+
+### UI Designs
+📄 [Font/Color etc (PDF)](Readme/inbento-cake-kiosk-icons.pdf)
+📄 [Font/Color etc (PDF)](Readme/inbento-cake-kiosk-screens.pdf)
+📄 [Log Documentation System](Readme/lds.pdf)
+📄 [Log Documentation System](https://github.com/Ndkorr/log-documentation-system.git)
+
+<p align="center">
+  <img src="Readme/ui.png" alt="UI Designs" width="600"/>
+  <br/>
+  <em>UI Designs</em>
+</p>
+
+### Staff Management Panel
+<p align="center">
+  <img src="Readme/staffpanel.jpg" alt="Staff Dashboard" width="600"/>
+  <br/>
+  <em>Real-time order management and analytics</em>
+</p>
+
+### Order Analytics
+<p align="center">
+  <img src="Readme/salesgraph.jpg" alt="Sales Analytics" width="600"/>
+  <br/>
+  <em>Track sales performance with interactive charts</em>
+</p>
+
+### Welcome Screen
+<p align="center">
+  <img src="Readme/init.jpg" alt="Welcome screen" width="400"/>
+  <br/>
+  <em>Welcome Screen</em>
+</p>
+
+### Animations
+<p align="center">
+  <img src="Readme/loading.gif" alt="Loading Screen" width="600"/>
+  <br/>
+  <em>Loading Animation</em>
+</p>
+
+<p align="center">
+  <img src="Readme/promo.gif" alt="Promo Screen" width="600"/>
+  <br/>
+  <em>Promo/Screensaver Animation</em>
+</p>
+
+<p align="center">
+  <img src="Readme/welcomescreen.gif" alt="Welcome Screen" width="600"/>
+  <br/>
+  <em>Welcome Animation</em>
+</p>
+
 
 ## Prerequisites
 
