@@ -41,7 +41,17 @@ Include screenshots of your app here.
    flutter pub get
    ```
 
-4. Run the app:
+4. Configure Firebase:
+   - Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
+   - Add your app to the Firebase project
+   - Download and add `google-services.json` (Android) and `GoogleService-Info.plist` (iOS)
+   - Enable Cloud Firestore in your Firebase project
+
+5. Configure ImgBB API:
+   - Get your API key from [ImgBB API](https://api.imgbb.com/)
+   - Add your API key to the project configuration
+
+6. Run the app:
    ```bash
    flutter run
    ```
@@ -49,22 +59,32 @@ Include screenshots of your app here.
 ## Project Structure
 
 ```
+assets/
+├── cake_layers/     # Contains 3d model of the cake
+├── icons/           # Icon that used on the app
+└── images/          # screen and menu cake images
+
 lib/
-├── models/          # Data models
 ├── screens/         # UI screens
-├── widgets/         # Reusable widgets
-├── services/        # Business logic and API calls
 ├── utils/           # Utility functions
+├── theme/           # Overall theme of the app
 └── main.dart        # App entry point
 ```
 
 ## Configuration
 
-Explain any configuration files, environment variables, or API keys needed.
+### Firebase Setup
+- `google-services.json` (Android): Place in `android/app/`
+- `GoogleService-Info.plist` (iOS): Place in `ios/Runner/`
+
+### API Keys
+- **ImgBB API**: Used for image hosting and storage
+- **Firebase**: Used for backend data storage and real-time database
 
 ## Usage
 
 Provide instructions on how to use the application.
+
 
 ## Technologies Used
 
