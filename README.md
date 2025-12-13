@@ -151,11 +151,6 @@ lib/
 - **ImgBB API**: Used for image hosting and storage
 - **Firebase**: Used for backend data storage and real-time database
 
-## Usage
-
-Provide instructions on how to use the application.
-
-
 ## Technologies Used
 
 - Flutter SDK (3.1.0+)
