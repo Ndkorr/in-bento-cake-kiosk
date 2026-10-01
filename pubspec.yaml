@@ -71,8 +71,15 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/images/
-    - assets/icons/
+    - assets/images/cake_1.png
+    - assets/images/cake_2.png
+    - assets/images/cake_3.png
+    - assets/images/cake_promo_1.png
+    - assets/images/cake_promo_2.png
+    - assets/images/cake_promo_3.png
+    - assets/icons/github.svg
+    - assets/icons/icon-original.png
+    - assets/icons/icon.png
     # Cake layer 3D models - full view
     - assets/cake_layers/full_view/heartshaped/2layers/
     - assets/cake_layers/full_view/heartshaped/3layers/

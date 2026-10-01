@@ -1240,11 +1240,26 @@ class _StaffScreenState extends State<StaffScreen> {
     return items;
   }
 
+  Future<List<List<Map<String, dynamic>>>> _loadOrderItemsForDocs(
+      List<QueryDocumentSnapshot> docs) async {
+    final itemsByOrder = <List<Map<String, dynamic>>>[];
+    for (var start = 0; start < docs.length; start += 10) {
+      final batch = docs.skip(start).take(10);
+      final batchItems = await Future.wait(batch.map((doc) {
+        return _loadOrderItems(
+          doc.id,
+          doc.data() as Map<String, dynamic>,
+        );
+      }));
+      itemsByOrder.addAll(batchItems);
+    }
+    return itemsByOrder;
+  }
+
   Future<double> _computeSalesFromDocs(List<QueryDocumentSnapshot> docs) async {
     double sales = 0.0;
-    for (var doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final items = await _loadOrderItems(doc.id, data);
+    final itemsByOrder = await _loadOrderItemsForDocs(docs);
+    for (var items in itemsByOrder) {
       for (var item in items) {
         final name = item['name'];
         final price = (item['price'] is int)
@@ -1263,10 +1278,8 @@ class _StaffScreenState extends State<StaffScreen> {
       List<QueryDocumentSnapshot> docs) async {
     final Map<String, double> totals = {};
 
-    for (var doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final items = await _loadOrderItems(doc.id, data);
-
+    final itemsByOrder = await _loadOrderItemsForDocs(docs);
+    for (var items in itemsByOrder) {
       for (var item in items) {
         final itemQty = (item['quantity'] is int)
             ? item['quantity'] as int
@@ -1713,9 +1726,8 @@ class _StaffScreenState extends State<StaffScreen> {
     final snapshot =
         await FirebaseFirestore.instance.collection('orders').get();
     final Set<String> cakeNames = {};
-    for (var doc in snapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final items = await _loadOrderItems(doc.id, data);
+    final itemsByOrder = await _loadOrderItemsForDocs(snapshot.docs);
+    for (final items in itemsByOrder) {
       for (var item in items) {
         final name = item['name'];
         if (name is String) cakeNames.add(name);
@@ -1739,14 +1751,15 @@ class _StaffScreenState extends State<StaffScreen> {
         .collection('orders')
         .orderBy('date')
         .get();
+    final itemsByOrder = await _loadOrderItemsForDocs(snapshot.docs);
 
     Map<String, double> salesMap = {};
 
-    for (var doc in snapshot.docs) {
+    for (var i = 0; i < snapshot.docs.length; i++) {
+      final doc = snapshot.docs[i];
       final data = doc.data() as Map<String, dynamic>;
       final dateStr = data['date'];
-      // load items from subcollection or top-level cartItems via helper
-      final items = await _loadOrderItems(doc.id, data);
+      final items = itemsByOrder[i];
 
       double filteredTotal = 0.0;
 
@@ -1880,11 +1893,10 @@ class _StaffScreenState extends State<StaffScreen> {
         .collection('orders')
         .where('date', isGreaterThanOrEqualTo: todayStr)
         .get();
+    final itemsByOrder = await _loadOrderItemsForDocs(snapshot.docs);
 
     double sales = 0.0;
-    for (var doc in snapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final items = await _loadOrderItems(doc.id, data);
+    for (var items in itemsByOrder) {
       for (var item in items) {
         final name = item['name'];
         final price = (item['price'] is int)
@@ -2206,13 +2218,15 @@ class _StaffScreenState extends State<StaffScreen> {
         .collection('orders')
         .orderBy('date')
         .get();
+    final itemsByOrder = await _loadOrderItemsForDocs(snapshot.docs);
     // map: label -> topping -> count
     final Map<String, Map<String, int>> counts = {};
 
-    for (var doc in snapshot.docs) {
+    for (var i = 0; i < snapshot.docs.length; i++) {
+      final doc = snapshot.docs[i];
       final data = doc.data() as Map<String, dynamic>;
       final dateStr = data['date'];
-      final items = await _loadOrderItems(doc.id, data);
+      final items = itemsByOrder[i];
 
       DateTime? date;
       if (dateStr is String) {
@@ -2506,12 +2520,10 @@ class _StaffScreenState extends State<StaffScreen> {
     super.initState();
     _allCakeNames = [];
     _selectedCakeNames = [];
-    // Load defaultDaily first so fetches can fallback to it when needed.
     _loadDefaultDailyTarget().then((_) {
-      _fetchAllCakeNames();
-      _fetchTargetSale();
-      _fetchTodaySalesAndTarget();
-      _fetchToppingsData();
+      if (mounted) {
+        setState(() {});
+      }
     });
   }
 

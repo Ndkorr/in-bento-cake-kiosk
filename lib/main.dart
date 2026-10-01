@@ -1,6 +1,5 @@
-import 'dart:async';
-
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/welcome_screen.dart';
@@ -22,6 +21,20 @@ void main() async {
       measurementId: "G-ZKN5VYX022",
     ),
   );
+  if (kIsWeb) {
+    try {
+      // This web-only API supports a shared cache when multiple tabs are open.
+      // ignore: deprecated_member_use
+      await FirebaseFirestore.instance.enablePersistence(
+        const PersistenceSettings(synchronizeTabs: true),
+      );
+    } on FirebaseException catch (error, stackTrace) {
+      debugPrint(
+        'Could not enable persistent Firestore cache; using memory cache: '
+        '$error\n$stackTrace',
+      );
+    }
+  }
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const MyApp());
@@ -42,65 +55,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_preloadResources());
-  }
-
-  Future<void> _preloadResources() async {
-    // Warm up image cache size a bit for smoother scrolling
-    PaintingBinding.instance.imageCache.maximumSizeBytes =
-        (PaintingBinding.instance.imageCache.maximumSizeBytes * 1.5).toInt();
-
-    // Preload common asset images used in headers and placeholders
-    // Note: requires a BuildContext; delay until first frame if needed
-    await WidgetsBinding.instance.endOfFrame;
-    final ctx =
-        MyApp.navigatorKey.currentContext ?? MyApp.kioskHomeKey.currentContext;
-    if (ctx != null) {
-      final assets = <ImageProvider<Object>>[
-        const AssetImage('assets/icons/icon-original.png'),
-        const AssetImage('assets/images/cake_1.png'),
-        const AssetImage('assets/images/cake_2.png'),
-        const AssetImage('assets/images/cake_3.png'),
-        const AssetImage('assets/images/cake_promo_1.png'),
-        const AssetImage('assets/images/cake_promo_2.png'),
-        const AssetImage('assets/images/cake_promo_3.png'),
-      ];
-      for (final ImageProvider<Object> provider in assets) {
-        try {
-          await precacheImage(provider, ctx);
-        } catch (_) {}
-      }
-    }
-
-    // Preload menuCombos network images to smooth first grid paint
-    try {
-      final combosSnap = await FirebaseFirestore.instance
-          .collection('menuCombos')
-          .orderBy('name')
-          .get();
-      final ctx2 = MyApp.navigatorKey.currentContext ?? ctx;
-      if (ctx2 != null) {
-        for (final doc in combosSnap.docs) {
-          final data = doc.data();
-          final img = data['image'];
-          if (img is String && img.startsWith('http')) {
-            try {
-              await precacheImage(NetworkImage(img), ctx2);
-            } catch (_) {}
-          }
-        }
-      }
-    } catch (_) {
-      // ignore caching failures
-    }
-
-    // Small delay to smooth out first paint if needed
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
