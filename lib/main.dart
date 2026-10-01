@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -40,12 +42,10 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  late Future<void> _preloadFuture;
-
   @override
   void initState() {
     super.initState();
-    _preloadFuture = _preloadResources();
+    unawaited(_preloadResources());
   }
 
   Future<void> _preloadResources() async {
@@ -56,7 +56,8 @@ class _MyAppState extends State<MyApp> {
     // Preload common asset images used in headers and placeholders
     // Note: requires a BuildContext; delay until first frame if needed
     await WidgetsBinding.instance.endOfFrame;
-    final ctx = MyApp.navigatorKey.currentContext ?? MyApp.kioskHomeKey.currentContext;
+    final ctx =
+        MyApp.navigatorKey.currentContext ?? MyApp.kioskHomeKey.currentContext;
     if (ctx != null) {
       final assets = <ImageProvider<Object>>[
         const AssetImage('assets/icons/icon-original.png'),
@@ -123,16 +124,7 @@ class _MyAppState extends State<MyApp> {
           child: child!,
         );
       },
-      home: FutureBuilder<void>(
-        future: _preloadFuture,
-        builder: (context, snapshot) {
-          // Show a minimal splash while preloading
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const _SplashScreen();
-          }
-          return KioskHome(key: MyApp.kioskHomeKey);
-        },
-      ),
+      home: KioskHome(key: MyApp.kioskHomeKey),
     );
   }
 }
@@ -190,27 +182,5 @@ class _KioskHomeState extends State<KioskHome> {
       );
     }
     return WelcomeScreen(key: _welcomeKey);
-  }
-}
-
-class _SplashScreen extends StatelessWidget {
-  const _SplashScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.cream200,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            CircularProgressIndicator(color: AppColors.pink700),
-            SizedBox(height: 12),
-            Text('Loading resources...',
-                style: TextStyle(color: AppColors.pink700)),
-          ],
-        ),
-      ),
-    );
   }
 }
